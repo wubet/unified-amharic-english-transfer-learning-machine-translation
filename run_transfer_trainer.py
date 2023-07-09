@@ -1,0 +1,115 @@
+# import tensorflow as tf
+from absl import flags
+from absl import app
+# import tensorflow_datasets as tfds
+# from tensorflow.keras.callbacks import ModelCheckpoint, LearningRateScheduler
+from learning_transformer import TransferLearningTransformer
+from transfer_model_runner import TrainTransferTransformer, TrainTransferLearningTransformer
+from common.utils import load_dataset, load_vocab, vocab_size
+from data.sentence_toknizer import SentenceTokenizer
+
+FLAGS = flags.FLAGS
+
+flags.DEFINE_string(
+    'src_lang_file_path', None, 'Directory of files storing source language '
+                                'sequences.')
+flags.DEFINE_string(
+    'tgt_lang_file_path', None, 'directory of files storing target language '
+                                'sequences.')
+flags.DEFINE_string(
+    'src_vocab_file_path', None, 'directory of final storing source language vocab.')
+
+flags.DEFINE_string(
+    'tgt_vocab_file_path', None, 'directory of final storing target language vocab.')
+
+flags.DEFINE_string(
+    'pre_trained_model_path', None, 'pre_trained model path.')
+
+
+def main(argv):
+    del argv  # Unused.
+
+    if not FLAGS.src_lang_file_path:
+        raise ValueError('You must specify "source language directory"!')
+    if not FLAGS.tgt_lang_file_path:
+        raise ValueError('You must specify "target language directory"!')
+    if not FLAGS.src_vocab_file_path:
+        raise ValueError('You must specify "source language vocab directory"!')
+    if not FLAGS.tgt_vocab_file_path:
+        raise ValueError('You must specify "target language vocab directory"!')
+    if not FLAGS.pre_trained_model_path:
+        raise ValueError('You must specify "pre_trained model path"!')
+
+    src_lang_file_path = FLAGS.src_lang_file_path
+    tgt_lang_file_path = FLAGS.tgt_lang_file_path
+    src_vocab_file_path = FLAGS.src_vocab_file_path
+    tgt_vocab_file_path = FLAGS.tgt_vocab_file_path
+    pre_trained_model_path = FLAGS.pre_trained_model_path
+
+    # Assuming we are using a preprocessed TensorFlow dataset
+    # train_dataset_path = "path_to_your_train_dataset"
+    # train_dataset = tf.data.experimental.load(train_dataset_path)
+
+    sentence_tokenizer = SentenceTokenizer(src_lang_file_path, tgt_lang_file_path, 100)
+
+    # train_dataset = load_dataset(src_lang_file_path, tgt_lang_file_path)
+    train_dataset = sentence_tokenizer.load_and_tokenize();
+
+    # Define the hypermarkets
+    d_model = 512
+    num_layers = 6
+    num_heads = 8
+    dff = 2048
+    dropout_rate = 0.1
+    learning_rate = 2.0
+
+    # Load the teacher model
+    teacher_model_path = pre_trained_model_path  # Path to the pretrained model
+
+    # # Load the dataset to calculate the vocab sizes
+    # tokenizer = tfds.deprecated.text.SubwordTextEncoder.build_from_corpus(
+    #     (data.numpy() for data, _ in train_dataset), target_vocab_size=2 ** 13)
+
+    # # Compute the vocab sizes. +2 for <start> and <end> tokens
+    # input_vocab_size = target_vocab_size = tokenizer.vocab_size + 2
+
+    source_vocab = load_vocab(src_vocab_file_path)
+    input_vocab_size = vocab_size(source_vocab)
+    target_vocab = load_vocab(tgt_vocab_file_path)
+    target_vocab_size = vocab_size(target_vocab)
+
+    # Initialize the transformer model for transfer learning
+    transfer_learning_transformer = TransferLearningTransformer(
+        input_vocab_size=input_vocab_size,
+        target_vocab_size=target_vocab_size,
+        d_model=d_model,
+        num_layers=num_layers,
+        num_heads=num_heads,
+        dff=dff,
+        dropout_rate=dropout_rate,
+        teacher_model_path=teacher_model_path)
+
+    # Create the Transformer model
+    transfer_learning_transformer.create_transformer()
+
+    # Create the optimizer and loss object
+    transfer_learning_transformer.create_optimizer(learning_rate=learning_rate)
+
+    # Create the metrics for monitoring training
+    transfer_learning_transformer.create_metrics()
+
+    # Initialize the training class with the transformer model
+    train_transfer_learning_transformer = TrainTransferLearningTransformer(transfer_learning_transformer)
+
+    # Assuming `dataset` is your tf.data.Dataset object with inputs and targets
+    epochs = 10  # Set your desired number of epochs
+    train_transfer_learning_transformer.train(train_dataset, epochs)
+
+
+if __name__ == '__main__':
+    flags.mark_flag_as_required('src_lang_file_path')
+    flags.mark_flag_as_required('tgt_lang_file_path')
+    flags.mark_flag_as_required('src_vocab_file_path')
+    flags.mark_flag_as_required('tgt_vocab_file_path')
+    flags.mark_flag_as_required('pre_trained_model_path')
+    app.run(main)

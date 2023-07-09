@@ -1,0 +1,4 @@
+tensorflow~=2.5.0
+numpy~=1.19.5
+transformers~=4.30.2
+tokenization~=1.0.7
