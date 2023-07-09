@@ -6,7 +6,7 @@ from tensorflow.keras.metrics import SparseCategoricalAccuracy
 from tensorflow.keras.layers import Input
 from tensorflow.keras.models import Model
 from transformers import TFBertModel
-from model1 import Transformer
+from models.model import Transformer
 
 
 # Define the TransferLearningTransformer class
@@ -22,6 +22,7 @@ class TransferLearningTransformer:
         self.dropout_rate = dropout_rate
         self.teacher_model_path = teacher_model_path
 
+        self.transformer_model = None
         self.optimizer = None
         self.loss_object = None
         self.train_loss = None
@@ -31,23 +32,47 @@ class TransferLearningTransformer:
         self.teacher_transformer = None
         self.switch_epoch = 5
 
+    # it creates a transformer model
     def create_transformer(self):
         # Create the Transformer model
+        # encoder_inputs = Input(shape=(None,))
+        # decoder_inputs = Input(shape=(None,))
+
         encoder_inputs = Input(shape=(None,))
         decoder_inputs = Input(shape=(None,))
 
         self.transformer = Transformer(self.num_layers, self.d_model, self.num_heads, self.dff,
                                        self.input_vocab_size, self.target_vocab_size, self.dropout_rate)
 
+        # # mask all the encoder pad tokens
+        # enc_padding_mask = self.transformer.create_padding_mask(encoder_inputs)
+        # # mask the future tokens in a sequence during training
+        # look_ahead_mask = self.transformer.create_look_ahead_mask(tf.shape(decoder_inputs)[1])
+        # # mask all the decoder pad tokens
+        # dec_padding_mask = self.transformer.create_padding_mask(encoder_inputs)
+        #
+        # # generates encoded representations of the input sequences.
+        # encoder_outputs = self.transformer.encoder(encoder_inputs, enc_padding_mask)
+        # # generate the output sequences.
+        # decoder_outputs, _ = self.transformer.decoder(decoder_inputs, encoder_outputs, look_ahead_mask,
+        #                                               dec_padding_mask)
+        #
+        # outputs = self.transformer.final_layer(decoder_outputs)
+
+        # mask all the encoder pad tokens
         enc_padding_mask = self.transformer.create_padding_mask(encoder_inputs)
+        # mask the future tokens in a sequence during training
         look_ahead_mask = self.transformer.create_look_ahead_mask(tf.shape(decoder_inputs)[1])
+        # mask all the decoder pad tokens
         dec_padding_mask = self.transformer.create_padding_mask(encoder_inputs)
 
-        encoder_outputs = self.transformer.encoder(encoder_inputs, enc_padding_mask)
-        decoder_outputs, _ = self.transformer.decoder(decoder_inputs, encoder_outputs, look_ahead_mask,
-                                                      dec_padding_mask)
+        # training is a boolean specifying whether to apply dropout (True) or not (False).
+        # You may need to replace it with an actual value or a placeholder variable depending on your implementation.
+        training = True
 
-        outputs = self.transformer.final_layer(decoder_outputs)
+        # Use the call method of the transformer to get the output and attention weights
+        outputs, _ = self.transformer(encoder_inputs, decoder_inputs, training, enc_padding_mask, look_ahead_mask,
+                                      dec_padding_mask)
 
         self.transformer_model = Model([encoder_inputs, decoder_inputs], outputs)
 
@@ -73,7 +98,6 @@ class TransferLearningTransformer:
         return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)
 
     def distillation_loss(self, labels, predictions, teacher_predictions, temperature=2.0, alpha=0.1):
-
         # Asymptotic distillation loss with teacher and student predictions
         teacher_predictions = tf.stop_gradient(teacher_predictions)
 
@@ -105,4 +129,3 @@ class TransferLearningTransformer:
     #     distillation_loss = alpha * student_loss + (1 - alpha) * kd_loss
     #
     #     return distillation_loss
-

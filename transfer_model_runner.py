@@ -140,11 +140,11 @@ class TrainTransferTransformer:
             if (epoch + 1) % 5 == 0:
                 ckpt_save_path = self.checkpoint_path
                 self.transformer.save_weights(ckpt_save_path)
-                print(f"Saving checkpoint for epoch {epoch+1}")
+                print(f"Saving checkpoint for epoch {epoch + 1}")
                 print(f'Saving checkpoint for epoch {epoch + 1} at {ckpt_save_path}')
 
             print(
-                f"Epoch {epoch+1} Loss {self.train_loss.result():.4f} Accuracy {self.train_accuracy.result():.4f}"
+                f"Epoch {epoch + 1} Loss {self.train_loss.result():.4f} Accuracy {self.train_accuracy.result():.4f}"
             )
 
     def rate_scheduler(self, epoch, warmup_steps=4000):
@@ -154,33 +154,47 @@ class TrainTransferTransformer:
 
 
 class TrainTransferLearningTransformer:
-    def __init__(self, transformer_model):
-        self.transformer_model = transformer_model
+    def __init__(self, transfer_learning_transformer_model):
+        self.transfer_learning_transformer_model = transfer_learning_transformer_model
 
-    def train_step(self, inp, tar):
-        tar_inp = tar[:, :-1]
-        tar_real = tar[:, 1:]
+    def train_step(self, source_language, target_language):
+        tar_input = target_language[:, :-1]
+        tar_real = target_language[:, 1:]
 
         with tf.GradientTape() as tape:
-            predictions, _ = self.transformer_model.transformer_model([inp, tar_inp], training=True)
-            if self.transformer_model.teacher_model_path and self.transformer_model.teacher_transformer:
-                teacher_predictions = self.transformer_model.teacher_transformer([inp, tar_inp], training=False)[0]
-                loss = self.transformer_model.distillation_loss(tar_real, predictions, teacher_predictions)
-            else:
-                loss = self.transformer_model.loss_object(tar_real, predictions)
+            predictions, _, *extra = self.transfer_learning_transformer_model.transformer_model([source_language, tar_input], training=True)
+            # if self.transfer_learning_transformer_model.teacher_model_path and self.transfer_learning_transformer_model.teacher_transformer:
+            #     print(source_language.shape)
+            #     print(tar_input.shape)
+            #     teacher_predictions = self.transfer_learning_transformer_model.teacher_transformer([source_language, tar_input],
+            #                                                                                        training=False)[0]
+            #     loss = self.transfer_learning_transformer_model.distillation_loss(tar_real, predictions, teacher_predictions)
+            # else:
+            #     loss = self.transfer_learning_transformer_model.loss_object(tar_real, predictions)
+            loss = self.transfer_learning_transformer_model.loss_object(tar_real, predictions)
+        gradients = tape.gradient(loss, self.transfer_learning_transformer_model.transfer_learning_transformer_model.trainable_variables)
+        self.transfer_learning_transformer_model.optimizer.apply_gradients(
+            zip(gradients, self.transfer_learning_transformer_model.transfer_learning_transformer_model.trainable_variables))
 
-        gradients = tape.gradient(loss, self.transformer_model.transformer_model.trainable_variables)
-        self.transformer_model.optimizer.apply_gradients(zip(gradients, self.transformer_model.transformer_model.trainable_variables))
-
-        self.transformer_model.train_loss(loss)
-        self.transformer_model.train_accuracy(tar_real, predictions)
+        self.transfer_learning_transformer_model.train_loss(loss)
+        self.transfer_learning_transformer_model.train_accuracy(tar_real, predictions)
 
     def train(self, dataset, epochs):
         for epoch in range(epochs):
-            self.transformer_model.train_loss.reset_states()
-            self.transformer_model.train_accuracy.reset_states()
+            self.transfer_learning_transformer_model.train_loss.reset_states()
+            self.transfer_learning_transformer_model.train_accuracy.reset_states()
 
-            for (batch, (inp, tar)) in enumerate(dataset):
-                self.train_step(inp, tar)
+            # for (batch, (source_language, target_language)) in enumerate(dataset):
+            #     print(f"Type of target_language: {type(target_language)}")
+            #     print(f"Shape of target_language: {tf.shape(target_language)}")
+            #     self.train_step(source_language, target_language)
+            # for i, data in enumerate(dataset.take(5)):
+            #     print(f"Element {i}: {data}")
 
-            print(f'Epoch {epoch + 1} Loss {self.transformer_model.train_loss.result():.4f} Accuracy {self.transformer_model.train_accuracy.result():.4f}')
+            for batch in dataset:
+                (source_language_input_ids, source_language_attention_mask), (
+                    target_language_input_ids, target_language_attention_mask) = batch
+                self.train_step(source_language_input_ids, target_language_input_ids)
+
+            print(
+                f'Epoch {epoch + 1} Loss {self.transfer_learning_transformer_model.train_loss.result():.4f} Accuracy {self.transfer_learning_transformer_model.train_accuracy.result():.4f}')
