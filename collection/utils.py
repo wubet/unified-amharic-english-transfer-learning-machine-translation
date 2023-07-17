@@ -203,3 +203,192 @@ def rel_shift(inputs):
   sliced = reshaped[:, :, 1:]
   outputs = tf.reshape(sliced, shape)
   return outputs
+
+# def load_and_tokenize(self):
+#     # Load the source and target files
+#     src_dataset = tf.data.TextLineDataset(self.src_file_path)
+#     tgt_dataset = tf.data.TextLineDataset(self.tgt_file_path)
+#
+#     # Tokenize the sentences
+#     src_dataset = src_dataset.map(self.tokenize_sentences)
+#     tgt_dataset = tgt_dataset.map(self.tokenize_sentences)
+#
+#     # Pad the sequences
+#     src_dataset = src_dataset.map(lambda x, y: pad_sequences(x, padding='post'))
+#     tgt_dataset = tgt_dataset.map(lambda x, y: pad_sequences(x, padding='post'))
+#
+#     # Zip the datasets together
+#     train_dataset = tf.data.Dataset.zip((src_dataset, tgt_dataset))
+#
+#     # Batch the dataset
+#     train_dataset = train_dataset.batch(self.batch_size)
+#
+#     return train_dataset
+
+# def load_and_tokenize(self):
+#     # Load the source and target files
+#     src_dataset = tf.data.TextLineDataset(self.src_file_path)
+#     tgt_dataset = tf.data.TextLineDataset(self.tgt_file_path)
+#
+#     # Tokenize the sentences
+#     src_dataset = src_dataset.map(self.tokenize_sentences)
+#     tgt_dataset = tgt_dataset.map(self.tokenize_sentences)
+#
+#     # Flatten the datasets and separate input_ids and attention_mask
+#     src_dataset = src_dataset.map(lambda features: (features['input_ids'], features['attention_mask']))
+#     tgt_dataset = tgt_dataset.map(lambda features: (features['input_ids'], features['attention_mask']))
+#
+#     # Zip the datasets together
+#     train_dataset = tf.data.Dataset.zip((src_dataset, tgt_dataset))
+#
+#     # Batch the dataset with padding
+#     train_dataset = train_dataset.padded_batch(self.batch_size, padded_shapes=(([None], [None]), ([None], [None])))
+#
+#     return train_dataset
+
+# def load_and_tokenize(self):
+#     # Load the source and target files
+#     src_dataset = tf.data.TextLineDataset(self.src_file_path)
+#     tgt_dataset = tf.data.TextLineDataset(self.tgt_file_path)
+#
+#     # Tokenize the sentences
+#     src_dataset = src_dataset.map(self.tokenize_sentences)
+#     tgt_dataset = tgt_dataset.map(self.tokenize_sentences)
+#
+#     # Flatten the datasets and separate input_ids and attention_mask
+#     src_dataset = src_dataset.map(lambda features: (features['input_ids'], features['attention_mask']))
+#     tgt_dataset = tgt_dataset.map(lambda features: (features['input_ids'], features['attention_mask']))
+#
+#     # Zip the datasets together
+#     train_dataset = tf.data.Dataset.zip((src_dataset, tgt_dataset))
+#
+#     # Function to calculate the length of an item
+#     def element_length_func(x, y):
+#         return tf.shape(x)[0]
+#
+#     # Boundaries for the buckets
+#     boundaries = [50, 100, 150, 200, 250]  # Modify these values as needed
+#
+#     # Batch sizes for each bucket
+#     batch_sizes = [self.batch_size] * (len(boundaries) + 1)
+#
+#     # Use bucket_by_sequence_length to bucket the sentences
+#     train_dataset = train_dataset.apply(
+#         tf.data.experimental.bucket_by_sequence_length(
+#             element_length_func, boundaries, batch_sizes, padded_shapes=(([None], [None]), ([None], [None]))
+#         )
+#     )
+#
+#     # # Find the maximum sequence length across both the source and target datasets
+#     # max_length = max(src_dataset.map(lambda x, y: tf.shape(x)[0]).reduce(tf.constant(0), tf.maximum),
+#     #                  tgt_dataset.map(lambda x, y: tf.shape(x)[0]).reduce(tf.constant(0), tf.maximum))
+#     #
+#     # # Pad both the source and target datasets to the maximum length
+#     # train_dataset = train_dataset.map(lambda src, tgt: ((tf.pad(src[0], [0, max_length - tf.shape(src[0])[0]]),
+#     #                                                      tf.pad(src[1], [0, max_length - tf.shape(src[1])[0]])),
+#     #                                                     (tf.pad(tgt[0], [0, max_length - tf.shape(tgt[0])[0]]),
+#     #                                                      tf.pad(tgt[1], [0, max_length - tf.shape(tgt[1])[0]]))))
+#
+#     return train_dataset
+
+ # def distillation_loss(self, labels, predictions, teacher_predictions, temperature=2.0, alpha=0.1):
+    #     # Asymptotic distillation loss with teacher and student predictions
+    #     teacher_predictions = tf.stop_gradient(teacher_predictions)
+    #
+    #     # Compute the cross-entropy loss between student predictions and labels
+    #     student_loss = self.loss_object(labels, predictions)
+    #
+    #     # Compute the cross-entropy loss between teacher predictions and labels
+    #     teacher_loss = self.loss_object(labels, teacher_predictions)
+    #
+    #     # Apply temperature scaling to both student and teacher predictions
+    #     scaled_student_predictions = predictions / temperature
+    #     scaled_teacher_predictions = teacher_predictions / temperature
+    #
+    #     # Compute the softmax cross-entropy loss between the scaled student and teacher predictions
+    #     kd_loss = self.loss_object(scaled_teacher_predictions, scaled_student_predictions)
+    #
+    #     # Compute the final distillation loss as a weighted sum of the student loss and the knowledge distillation loss
+    #     distillation_loss = alpha * student_loss + (1 - alpha) * kd_loss
+    #
+    #     return distillation_loss
+
+  # class TrainTransferTransformer:
+  #   def __init__(self, transformer, optimizer, loss_object, train_loss, train_accuracy, checkpoint_path):
+  #     self.transformer = transformer
+  #     self.optimizer = optimizer
+  #     self.loss_object = loss_object
+  #     self.train_loss = train_loss
+  #     self.train_accuracy = train_accuracy
+  #     # "./checkpoints/ckpt"
+  #     self.checkpoint_path = checkpoint_path
+  #
+  #   def create_masks(self, inp, tar):
+  #     encoder_padding_mask = self.transformer.create_padding_mask(inp)
+  #     decoder_padding_mask = self.transformer.create_padding_mask(inp)
+  #     look_ahead_mask = self.transformer.create_look_ahead_mask(tf.shape(tar)[1])
+  #     dec_target_padding_mask = self.transformer.create_padding_mask(tar)
+  #     combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
+  #     return encoder_padding_mask, combined_mask, decoder_padding_mask
+  #
+  #   def loss_function(self, real, pred):
+  #     mask = tf.math.logical_not(tf.math.equal(real, 0))
+  #     loss = self.loss_object(real, pred)
+  #
+  #     mask = tf.cast(mask, dtype=loss.dtype)
+  #     loss *= mask
+  #
+  #     return tf.reduce_mean(loss)
+  #
+  #   def train_step(self, inp, tar, tchr=None, use_distillation=False):
+  #     tar_inp = tar[:, :-1]
+  #     tar_real = tar[:, 1:]
+  #
+  #     encoder_padding_mask, combined_mask, decoder_padding_mask = self.create_masks(inp, tar_inp)
+  #
+  #     with tf.GradientTape() as tape:
+  #       predictions, _ = self.transformer(
+  #         inp, tar_inp, True, encoder_padding_mask, combined_mask, decoder_padding_mask
+  #       )
+  #
+  #       if use_distillation and tchr is not None:
+  #         tchr_predictions, _ = tchr.transformer(
+  #           inp, tar_inp, True, encoder_padding_mask, combined_mask, decoder_padding_mask
+  #         )
+  #         distillation_loss = self.loss_object(tar_real, tchr_predictions)
+  #         loss = distillation_loss + self.loss_object(tar_real, predictions)
+  #       else:
+  #         loss = self.loss_object(tar_real, predictions)
+  #
+  #     gradients = tape.gradient(loss, self.transformer.trainable_variables)
+  #     self.optimizer.apply_gradients(zip(gradients, self.transformer.trainable_variables))
+  #
+  #     self.train_loss(loss)
+  #     self.train_accuracy(tar_real, predictions)
+  #
+  #   def train(self, train_dataset, teacher=None, use_distillation=False, epochs=20, rate_schedule=False):
+  #     for epoch in range(epochs):
+  #       self.train_loss.reset_states()
+  #       self.train_accuracy.reset_states()
+  #
+  #       if rate_schedule:
+  #         self.optimizer.lr.assign(self.rate_scheduler(epoch))
+  #
+  #       for (batch, (inp, tar)) in enumerate(train_dataset):
+  #         self.train_step(inp, tar, teacher, use_distillation)
+  #
+  #       if (epoch + 1) % 5 == 0:
+  #         ckpt_save_path = self.checkpoint_path
+  #         self.transformer.save_weights(ckpt_save_path)
+  #         print(f"Saving checkpoint for epoch {epoch + 1}")
+  #         print(f'Saving checkpoint for epoch {epoch + 1} at {ckpt_save_path}')
+  #
+  #       print(
+  #         f"Epoch {epoch + 1} Loss {self.train_loss.result():.4f} Accuracy {self.train_accuracy.result():.4f}"
+  #       )
+  #
+  #   def rate_scheduler(self, epoch, warmup_steps=4000):
+  #     arg1 = tf.math.rsqrt(tf.cast(epoch + 1, tf.float32))
+  #     arg2 = epoch * (warmup_steps ** -1.5)
+  #     return tf.math.rsqrt(tf.cast(self.transformer.d_model, tf.float32)) * tf.math.minimum(arg1, arg2)
+

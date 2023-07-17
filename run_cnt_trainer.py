@@ -1,12 +1,10 @@
-# import tensorflow as tf
 from absl import flags
 from absl import app
-# import tensorflow_datasets as tfds
-# from tensorflow.keras.callbacks import ModelCheckpoint, LearningRateScheduler
-from learning_transformer import TransferLearningTransformer
-from transfer_model_runner import TrainTransferTransformer, TrainTransferLearningTransformer
+from cnt_transformer import CntTransformer
+from cnt_model_runner import TrainCntModel
 from common.utils import load_dataset, load_vocab, vocab_size
 from data.sentence_toknizer import SentenceTokenizer
+from data.dataset import *
 
 FLAGS = flags.FLAGS
 
@@ -45,15 +43,30 @@ def main(argv):
     src_vocab_file_path = FLAGS.src_vocab_file_path
     tgt_vocab_file_path = FLAGS.tgt_vocab_file_path
     pre_trained_model_path = FLAGS.pre_trained_model_path
+    buffer_size = 1000
+    batch_size = 100
 
     # Assuming we are using a preprocessed TensorFlow dataset
     # train_dataset_path = "path_to_your_train_dataset"
     # train_dataset = tf.data.experimental.load(train_dataset_path)
 
-    sentence_tokenizer = SentenceTokenizer(src_lang_file_path, tgt_lang_file_path, 100)
+    # data_loader = DataLoader(source_tokenizer, target_tokenizer, max_limit=40)
+    # data_loader.save_vocabs_to_file("source_vocab.txt", "target_vocab.txt")
+    # dataset = get_dataset("source_sentences.txt", "target_sentences.txt")
+    dataset = get_dataset(src_lang_file_path, tgt_lang_file_path)
+    data_loader = DataLoader(None, None)
+    source_tokenizer, target_tokenizer = data_loader.get_tokenizers(src_vocab_file_path, tgt_vocab_file_path, dataset)
 
-    # train_dataset = load_dataset(src_lang_file_path, tgt_lang_file_path)
-    train_dataset = sentence_tokenizer.load_and_tokenize();
+    # data_loader.save_vocabs_to_file(src_vocab_file_path,   tgt_vocab_file_path)
+    tf_dataset = data_loader.get_dataset(dataset, buffer_size, batch_size)
+
+    # src_vocab_file_path = source_tokenizer.vocab_size + 2
+    # tgt_vocab_file_path = target_tokenizer.vocab_size + 2
+
+    # sentence_tokenizer = SentenceTokenizer(src_lang_file_path, tgt_lang_file_path, 100)
+    #
+    # # train_dataset = load_dataset(src_lang_file_path, tgt_lang_file_path)
+    # train_dataset = sentence_tokenizer.load_and_tokenize();
 
     # Define the hypermarkets
     d_model = 512
@@ -73,15 +86,15 @@ def main(argv):
     # # Compute the vocab sizes. +2 for <start> and <end> tokens
     # input_vocab_size = target_vocab_size = tokenizer.vocab_size + 2
 
-    source_vocab = load_vocab(src_vocab_file_path)
-    input_vocab_size = vocab_size(source_vocab)
-    target_vocab = load_vocab(tgt_vocab_file_path)
-    target_vocab_size = vocab_size(target_vocab)
+    # source_vocab = load_vocab(src_vocab_file_path)
+    # input_vocab_size = vocab_size(source_vocab)
+    # target_vocab = load_vocab(tgt_vocab_file_path)
+    # target_vocab_size = vocab_size(target_vocab)
 
     # Initialize the transformer model for transfer learning
-    transfer_learning_transformer = TransferLearningTransformer(
-        input_vocab_size=input_vocab_size,
-        target_vocab_size=target_vocab_size,
+    cnt_transformer = CntTransformer(
+        input_vocab_size=source_tokenizer.vocab_size + 2,
+        target_vocab_size=target_tokenizer.vocab_size + 2,
         d_model=d_model,
         num_layers=num_layers,
         num_heads=num_heads,
@@ -90,20 +103,25 @@ def main(argv):
         teacher_model_path=teacher_model_path)
 
     # Create the Transformer model
-    transfer_learning_transformer.create_transformer()
+    cnt_transformer.create_transformer()
 
     # Create the optimizer and loss object
-    transfer_learning_transformer.create_optimizer(learning_rate=learning_rate)
+    cnt_transformer.create_optimizer(learning_rate=learning_rate)
+
+    # Create loss function
+    cnt_transformer.create_cross_entropy()
 
     # Create the metrics for monitoring training
-    transfer_learning_transformer.create_metrics()
+    cnt_transformer.create_metrics()
 
     # Initialize the training class with the transformer model
-    train_transfer_learning_transformer = TrainTransferLearningTransformer(transfer_learning_transformer)
+    train_cnt_model = TrainCntModel(cnt_transformer)
+
+    cnt_transformer.transformer_model.summary()
 
     # Assuming `dataset` is your tf.data.Dataset object with inputs and targets
-    epochs = 10  # Set your desired number of epochs
-    train_transfer_learning_transformer.train(train_dataset, epochs)
+    epochs = 2  # Set your desired number of epochs
+    train_cnt_model.train(tf_dataset, epochs)
 
 
 if __name__ == '__main__':

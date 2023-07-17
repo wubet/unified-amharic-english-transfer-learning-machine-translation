@@ -10,21 +10,29 @@ class DecoderLayer(tf.keras.layers.Layer):
     fully connected block.
     """
 
+    # Initialize the layer with its internal components.
     def __init__(self, d_model, num_heads, dff, dropout_rate=0.1):
+        # Call the initializer of the parent class.
         super(DecoderLayer, self).__init__()
 
+        # Define the first multi-head attention layer, this will perform self-attention on the input.
         self.mha1 = layers.MultiHeadAttention(num_heads=num_heads, key_dim=d_model, dropout=dropout_rate)
+
+        # Define the second multi-head attention layer, this will perform attention on the encoder output.
         self.mha2 = layers.MultiHeadAttention(num_heads=num_heads, key_dim=d_model, dropout=dropout_rate)
 
+        # Define the pointwise feed-forward network.
         self.ffn = tf.keras.Sequential([
             layers.Dense(dff, activation='relu'),
             layers.Dense(d_model)
         ])
 
+        # Define layer normalization layers, to stabilize the layer's inputs.
         self.layernorm1 = layers.LayerNormalization(epsilon=1e-6)
         self.layernorm2 = layers.LayerNormalization(epsilon=1e-6)
         self.layernorm3 = layers.LayerNormalization(epsilon=1e-6)
 
+        # Define dropout layers to prevent overfitting.
         self.dropout1 = layers.Dropout(dropout_rate)
         self.dropout2 = layers.Dropout(dropout_rate)
         self.dropout3 = layers.Dropout(dropout_rate)
@@ -47,42 +55,25 @@ class DecoderLayer(tf.keras.layers.Layer):
             attn_weights_block1 -- Tensor of shape(batch_size, num_heads, target_seq_len, input_seq_len)
             attn_weights_block2 -- Tensor of shape(batch_size, num_heads, target_seq_len, input_seq_len)
         """
-        # BLOCK 1
-        # calculate self-attention and return attention scores as attn_weights_block1.
-        # Dropout will be applied during training (~1 line).
-        # attn1, attn_weights_block1 = self.mha1(query=x, value=x, key=x,
-        #                                        attention_mask=look_ahead_mask)  # (batch_size, target_seq_len, d_model)
+        # Block 1: self-attention with look-ahead mask and layer normalization.
         attn1, attn_weights_block1 = self.mha1(query=x, value=x, key=x, attention_mask=look_ahead_mask,
                                                return_attention_scores=True,
-                                               training=training)  # (batch_size, target_seq_len, d_model)
-        # attn1 = self.dropout1(attn1, training=training)
-        # apply layer normalization (layernorm1) to the sum of the attention output and the input (~1 line)
+                                               training=training)
+        attn1 = self.dropout1(attn1, training=training)
         out1 = self.layernorm1(attn1 + x)
 
-        # BLOCK 2
-        # calculate self-attention using the Q from the first block and K and V from the encoder output.
-        # Dropout will be applied during training
-        # Return attention scores as attn_weights_block2 (~1 line)
-        # attn2, attn_weights_block2 = self.mha2(enc_output, enc_output, out1,
-        #                                        padding_mask)  # (batch_size, target_seq_len, d_model)
-        # attn2, attn_weights_block2 = self.mha2(query=out1, value=enc_output, key=enc_output,
-        #                                        attention_mask=padding_mask)  # (batch_size, target_seq_len, d_model)
-        print("enc_output.shape", enc_output.shape)
+        # Block 2: attention with encoder output and padding mask and layer normalization.
         attn2, attn_weights_block2 = self.mha2(query=out1, value=enc_output, key=enc_output,
                                                attention_mask=padding_mask,
                                                return_attention_scores=True,
-                                               training=training)  # (batch_size, target_seq_len, d_model)
-        # attn2 = self.dropout2(attn2, training=training)
-        # apply layer normalization (layernorm2) to the sum of the attention output and the output of the first block
-        # (~1 line)
+                                               training=training)
+        attn2 = self.dropout2(attn2, training=training)
         out2 = self.layernorm2(out1 + attn2)
 
-        # BLOCK 3
-        # pass the output of the second block through a ffn
-        ffn_output = self.ffn(out2)  # (batch_size, target_seq_len, d_model)
-        # apply a dropout layer to the ffn output
+        # Block 3: pointwise feed-forward network with layer normalization.
+        ffn_output = self.ffn(out2)
         ffn_output = self.dropout3(ffn_output, training=training)
-        # apply layer normalization (layernorm3) to the sum of the ffn output and the output of the second block
         out3 = self.layernorm3(ffn_output + out2)
 
+        # Return the output and the attention weights.
         return out3, attn_weights_block1, attn_weights_block2

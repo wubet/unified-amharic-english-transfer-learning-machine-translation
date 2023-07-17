@@ -16,6 +16,23 @@ def positional_encoding(position, d_model):
     return pos_encoding
 
 
+def scaled_dot_product_attention(q, k, v, mask):
+    qk = tf.matmul(q, k, transpose_b=True)
+    dk = tf.cast(tf.shape(k)[-1], tf.float32)
+    softmax_logits = qk / tf.math.sqrt(dk)
+    if mask is not None:
+        softmax_logits += (mask * -1e9)
+    attention_weights = tf.nn.softmax(softmax_logits, axis=-1)
+    output = tf.matmul(attention_weights, v)
+    return output, attention_weights
+
+
+def position_wise_ffn(dense_units, dff):
+    return tf.keras.Sequential([
+        tf.keras.layers.Dense(dff, activation='relu'),
+        tf.keras.layers.Dense(dense_units)
+    ])
+
 # function to load dataset from two sources
 def load_dataset(src_file_path, tgt_file_path):
     # Load the source and target files
