@@ -33,6 +33,7 @@ def position_wise_ffn(dense_units, dff):
         tf.keras.layers.Dense(dense_units)
     ])
 
+
 # function to load dataset from two sources
 def load_dataset(src_file_path, tgt_file_path):
     # Load the source and target files
@@ -102,3 +103,11 @@ def create_tokenizer(vocab):
 def read_file_ignore_errors(file_path):
     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
         return f.read()
+
+
+# Convert attention mask to 1s and 0s format and add extra dimensions to match the `hidden_states` tensor's shape
+def create_attention_mask(attention_mask):
+    attention_mask = tf.cast(attention_mask, tf.float32)
+    extended_attention_mask = attention_mask[:, tf.newaxis, tf.newaxis, :]
+    extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
+    return extended_attention_mask

@@ -1,9 +1,7 @@
 from absl import flags
 from absl import app
-from cnt_transformer import CntTransformer
-from cnt_model_runner import TrainCntModel
-from common.utils import load_dataset, load_vocab, vocab_size
-from data.sentence_toknizer import SentenceTokenizer
+from cnt_tranformer_model.cnt_transformer import CntTransformer
+from cnt_tranformer_model.cnt_model_runner import TrainCntModel
 from data.dataset import *
 
 FLAGS = flags.FLAGS
