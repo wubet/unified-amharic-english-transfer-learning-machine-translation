@@ -22,7 +22,7 @@ flags.DEFINE_integer(
 
 
 # create vocabulary files from source and target language file
-def create_vocab(language_dir: List[str], output_file, use_exist_vocab=False, do_lower_case=True, max_vocab_size=32768):
+def create_vocab(language_dir: List[str], output_file, use_exist_vocab=False, do_lower_case=False, max_vocab_size=32768):
     # Check if output directory exists, if not create it
     output_dir = os.path.dirname(output_file)
     if not os.path.exists(output_dir):

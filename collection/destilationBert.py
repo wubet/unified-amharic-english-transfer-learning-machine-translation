@@ -52,6 +52,6 @@ class DistillBERTNMT(tf.keras.Model):
 
 bert_model = BertModel.from_pretrained('bert-base-uncased')
 # Define or load your seq2seq model here
-seq2seq_model =
-
-model = DistillBERTNMT(bert_model, seq2seq_model)
+# seq2seq_model
+#
+# model = DistillBERTNMT(bert_model, seq2seq_model)

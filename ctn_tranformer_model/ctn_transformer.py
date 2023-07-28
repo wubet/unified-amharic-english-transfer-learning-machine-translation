@@ -1,10 +1,11 @@
 import tensorflow as tf
 from transformers import TFBertModel
 from models.model import Transformer
+from transformers import BertConfig
 
 
 # This class represents the Transformer model for training.
-class CntTransformer:
+class CtnTransformer:
     # Initialization method that takes various hyper_parameters and optional teacher model path as arguments.
     def __init__(self, input_vocab_size, target_vocab_size, d_model, num_layers, num_heads, dff, dropout_rate,
                  teacher_model_path=None):
@@ -27,6 +28,8 @@ class CntTransformer:
         self.learning_rate = None
         self.transformer = None
         self.teacher_model = None
+        self.student_encoder = None
+        self.student_decoder = None
         self.switch_epoch = 5  # Presumably, the epoch at which some change in the training process is made.
 
     # It creates a transformer model.
@@ -34,6 +37,9 @@ class CntTransformer:
         # Create input layers for the encoder and decoder.
         encoder_inputs = tf.keras.layers.Input(shape=(None,))
         decoder_inputs = tf.keras.layers.Input(shape=(None,))
+        # Create input layers for the encoder and decoder.
+        # encoder_inputs = tf.keras.layers.Input(shape=(None, self.input_vocab_size))
+        # decoder_inputs = tf.keras.layers.Input(shape=(None, self.target_vocab_size))
 
         # Create the Transformer model.
         self.transformer = Transformer(self.num_layers, self.d_model, self.num_heads, self.dff,
@@ -47,24 +53,40 @@ class CntTransformer:
         # Training is a boolean specifying whether to apply dropout (True) or not (False).
         training = True
 
-        # Use the call method of the transformer to get the output.
-        outputs, _ = self.transformer(encoder_inputs, decoder_inputs, training, enc_padding_mask, look_ahead_mask,
-                                      dec_padding_mask)
+        # # Use the call method of the transformer to get the output.
+        outputs, _, encoder_outputs = self.transformer(encoder_inputs, decoder_inputs, training, enc_padding_mask,
+                                                       look_ahead_mask,
+                                                       dec_padding_mask)
+
+        # encoder_outputs, encoder_hidden = self.transformer.encoder(encoder_inputs, training, enc_padding_mask)
+
+        # Now, create a separate layer for encoder_outputs and connect it to the model output.
+        # encoder_outputs_layer = tf.keras.layers.Lambda(lambda x: x)  # Identity layer for encoder_outputs
+        # encoder_outputs = encoder_outputs_layer(encoder_outputs)
+
+        # Create the self.student_encoder model directly.
+        self.student_encoder = tf.keras.models.Model([encoder_inputs, decoder_inputs], encoder_outputs)
+        # self.student_encoder = [encoder_outputs, encoder_hidden]
+        # self.student_decoder = self.get_student_decoder(encoder_outputs)
+
 
         # Create the complete Transformer model.
-        self.transformer_model = tf.keras.models.Model([encoder_inputs, decoder_inputs], outputs)
+        self.transformer_model = tf.keras.models.Model(inputs=[encoder_inputs, decoder_inputs], outputs=encoder_outputs)
 
         # If a teacher model path is provided, load the teacher model (BERT).
         if self.teacher_model_path:
-            self.teacher_model = TFBertModel.from_pretrained(self.teacher_model_path)
+            # Create a BERT configuration with output_hidden_states set to True
+            config = BertConfig.from_pretrained(self.teacher_model_path)
+            config.output_hidden_states = True
+            self.teacher_model = TFBertModel.from_pretrained(self.teacher_model_path, config=config)
 
-    # Creates the optimizer for the model.
-    def create_optimizer(self, learning_rate):
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
-
-    # Creates the loss function for the model.
-    def create_cross_entropy(self):
-        self.loss_object = tf.keras.metrics.SparseCategoricalCrossentropy(from_logits=True)
+    # # Creates the optimizer for the model.
+    # def create_optimizer(self, learning_rate):
+    #     self.optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
+    #
+    # # Creates the loss function for the model.
+    # def create_cross_entropy(self):
+    #     self.loss_object = tf.keras.metrics.SparseCategoricalCrossentropy(from_logits=True)
 
     # Creates metrics for monitoring the training process.
     def create_metrics(self):
@@ -94,7 +116,6 @@ class CntTransformer:
         # Compute the distillation loss using mean squared error (MSE)
         distillation_loss = tf.reduce_mean(tf.square(teacher_hidden_states - student_predictions))
         return distillation_loss
-
 
     # Define the distillation loss function
     def asymptotic_distillation_loss(self, labels, student_predictions, teacher_predictions):
@@ -156,4 +177,75 @@ class CntTransformer:
             raise ValueError("Hidden sizes of teacher_hidden_states and student_predictions do not match. "
                              f"Teacher hidden size: {hidden_size_teacher}, Student hidden size: {hidden_size_student}")
 
+    def dynamic_switch(self, teacher_enc_output, student_enc_output, dynamic_switch_rate):
+        switch_rate = tf.sigmoid(dynamic_switch_rate)
+        return switch_rate * teacher_enc_output + (1 - switch_rate) * student_enc_output
 
+        # # Dynamic switch
+        # context_gate = tf.keras.layers.Dense(1, activation='sigmoid')
+        # g = context_gate(tf.concat([teacher_enc_output, student_enc_output], axis=-1))
+        # switched_output = g * teacher_enc_output + (1 - g) * student_enc_output
+        # return switched_output
+
+    def student_encoder(self, inputs, training, enc_padding_mask, dec_padding_mask, look_ahead_mask):
+        encoder_inputs, decoder_inputs = inputs
+        # encoder_padding_mask = self.create_padding_mask(encoder_inputs)
+        # decoder_padding_mask = self.create_padding_mask(decoder_inputs)
+        # look_ahead_mask = self.create_look_ahead_mask(tf.shape(decoder_inputs)[1])
+
+        encoder_outputs, encoder_hidden = self.transformer.encoder(encoder_inputs, training, enc_padding_mask)
+
+        decoder_outputs, decoder_hidden = self.transformer.decoder(
+            decoder_inputs, encoder_outputs, training, look_ahead_mask, dec_padding_mask
+        )
+
+        return [encoder_outputs, encoder_hidden]
+
+
+    def get_student_decoder(self, enc_output, target_seq_len):
+        # tar = tf.keras.layers.Input(shape=(None,))
+        # look_ahead_mask = tf.keras.layers.Input(shape=(1, None, None))
+        # padding_mask = tf.keras.layers.Input(shape=(1, 1, None))
+        # dec_output, attention_weights = self.transformer.decoder(x=tar, enc_output=enc_output, training=True,
+        #                                                          look_ahead_mask=look_ahead_mask,
+        #                                                          padding_mask=padding_mask)
+        #
+        # return tf.keras.models.Model(inputs=[tar, enc_output, look_ahead_mask, padding_mask],
+        #                              outputs=[dec_output, attention_weights])
+        # tar = tf.keras.layers.Input(shape=(None,))
+        # look_ahead_mask = tf.keras.layers.Input(shape=(1, None, None))
+        # padding_mask = tf.keras.layers.Input(shape=(1, 1, None))
+        # dec_output, _ = self.transformer.decoder(x=tar, enc_output=enc_output, training=True,
+        #                                          look_ahead_mask=look_ahead_mask,
+        #                                          padding_mask=padding_mask)
+        #
+        # return tf.keras.models.Model(inputs=[tar, look_ahead_mask, padding_mask],
+        #                              outputs=dec_output)
+        # Create input layers for the decoder.
+        # Create input layers for the decoder.
+        tar = tf.keras.layers.Input(shape=(target_seq_len,))
+        look_ahead_mask = tf.keras.layers.Input(shape=(1, None, None))
+        padding_mask = tf.keras.layers.Input(shape=(1, 1, None))
+
+        # Get the decoder outputs and hidden state from the decoder model
+        decoder_inputs = [tar, look_ahead_mask, padding_mask]  # Remove enc_output from decoder inputs
+        dec_output, _ = self.transformer.decoder(
+            tar, enc_output=enc_output, training=True, look_ahead_mask=look_ahead_mask, padding_mask=padding_mask
+        )
+
+        return tf.keras.models.Model(inputs=decoder_inputs, outputs=dec_output)
+
+    def loss_function(self, real, pried):
+        loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
+        mask = tf.math.logical_not(tf.math.equal(real, 0))
+        loss_ = loss_object(real, pried)
+
+        mask = tf.cast(mask, dtype=loss_.dtype)
+        loss_ *= mask
+        return tf.reduce_sum(loss_) / tf.reduce_sum(mask)
+
+    # def create_padding_mask(self, seq):
+    #     seq = tf.cast(tf.math.equal(seq, 0), tf.float32)
+    #     return seq[:, tf.newaxis, tf.newaxis, :]  # add extra dimensions to match the BERT model's expected input
+    #
+    #

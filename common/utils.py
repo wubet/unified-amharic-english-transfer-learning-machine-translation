@@ -82,15 +82,15 @@ def load_dataset(src_file_path, tgt_file_path, batch_size):
 
 
 # load vocabulary file
-def load_vocab(vocab_file_path):
-    with open(vocab_file_path, 'r', encoding='utf-8') as f:
-        lines = f.readlines()
-    return [line.strip() for line in lines]
-
-
-# determine the size of the vocabulary file
-def vocab_size(vocab):
-    return len(vocab) + 2
+# def load_vocab(vocab_file_path):
+#     with open(vocab_file_path, 'r', encoding='utf-8') as f:
+#         lines = f.readlines()
+#     return [line.strip() for line in lines]
+#
+#
+# # determine the size of the vocabulary file
+# def vocab_size(vocab):
+#     return len(vocab) + 2
 
 
 # Create tokenizer from the vocab
@@ -111,3 +111,26 @@ def create_attention_mask(attention_mask):
     extended_attention_mask = attention_mask[:, tf.newaxis, tf.newaxis, :]
     extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
     return extended_attention_mask
+
+
+def create_padding_mask(seq):
+    seq = tf.cast(tf.math.equal(seq, 0), tf.float32)
+    return seq[:, tf.newaxis, tf.newaxis, :]  # add extra dimensions to match the BERT model's expected input
+
+
+def create_look_ahead_mask(size):
+    mask = 1 - tf.linalg.band_part(tf.ones((size, size)), -1, 0)
+    return mask  # (seq_len, seq_len)
+
+
+def create_masks(tgt):
+    look_ahead_mask = create_look_ahead_mask(tf.shape(tgt)[1])
+    dec_target_padding_mask = create_padding_mask(tgt)
+    combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
+    return combined_mask
+
+
+def mse_loss(teacher_enc_output, student_enc_output):
+    return tf.reduce_mean(tf.square(teacher_enc_output - student_enc_output))
+
+

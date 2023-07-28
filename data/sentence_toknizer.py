@@ -1,5 +1,5 @@
 from transformers import BertTokenizer
-from tensorflow.keras.preprocessing.sequence import pad_sequences
+# from tensorflow.keras.preprocessing.sequence import pad_sequences
 import tensorflow as tf
 import numpy as np
 
@@ -65,6 +65,24 @@ class SentenceTokenizer:
             )
         )
 
+        return train_dataset
+
+    def load_vocab(self, vocab_file_path):
+        try:
+            with open(vocab_file_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+            return [line.strip() for line in lines]
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Vocabulary file not found: {vocab_file_path}")
+        except Exception as e:
+            raise RuntimeError(f"Error loading vocabulary from {vocab_file_path}: {e}")
+
+    # determine the size of the vocabulary file
+    def vocab_size(self, vocab):
+        if vocab is None or len(vocab) == 0:
+            raise ValueError("Vocabulary is None or empty. Cannot calculate vocabulary size.")
+        return len(vocab) + 2
+
     # def __init__(self, src_file_path, tgt_file_path, batch_size):
     #     self.src_file_path = src_file_path
     #     self.tgt_file_path = tgt_file_path
@@ -129,5 +147,5 @@ class SentenceTokenizer:
     #         )
     #     )
 
-        return train_dataset
+        # return train_dataset
 

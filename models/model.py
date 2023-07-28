@@ -10,7 +10,6 @@ class Transformer(tf.keras.Model, ABC):
     """
     Complete transformer with an Encoder and a Decoder
     """
-
     # This method initializes an instance of the Transformer class.
     def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size, target_vocab_size, dropout_rate=0.1):
         # Call the parent class' constructor.
@@ -60,7 +59,7 @@ class Transformer(tf.keras.Model, ABC):
         # pass decoder output through a linear layer and softmax (~2 lines)
         final_output = self.final_layer(dec_output)
 
-        return final_output, attention_weights
+        return final_output, attention_weights, enc_output
 
     def create_padding_mask(self, seq):
         """

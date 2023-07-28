@@ -1,8 +1,9 @@
 from absl import flags
 from absl import app
-from cnt_tranformer_model.cnt_transformer import CntTransformer
-from cnt_tranformer_model.cnt_model_runner import TrainCntModel
-from data.dataset import *
+from ctn_tranformer_model.ctn_transformer import CtnTransformer
+from ctn_tranformer_model.ctn_model_runner import TrainCntModel
+# from data.dataset import *
+from data.sentence_toknizer import *
 
 FLAGS = flags.FLAGS
 
@@ -51,23 +52,24 @@ def main(argv):
     # data_loader = DataLoader(source_tokenizer, target_tokenizer, max_limit=40)
     # data_loader.save_vocabs_to_file("source_vocab.txt", "target_vocab.txt")
     # dataset = get_dataset("source_sentences.txt", "target_sentences.txt")
-    dataset = get_dataset(src_lang_file_path, tgt_lang_file_path)
-    data_loader = DataLoader(None, None)
-    source_tokenizer, target_tokenizer = data_loader.get_tokenizers(src_vocab_file_path, tgt_vocab_file_path, dataset)
+
+    # dataset = get_dataset(src_lang_file_path, tgt_lang_file_path)
+    # data_loader = DataLoader(None, None)
+    # source_tokenizer, target_tokenizer = data_loader.get_tokenizers(src_vocab_file_path, tgt_vocab_file_path, dataset)
 
     # data_loader.save_vocabs_to_file(src_vocab_file_path,   tgt_vocab_file_path)
-    tf_dataset = data_loader.get_dataset(dataset, buffer_size, batch_size)
+    # tf_dataset = data_loader.get_dataset(dataset, buffer_size, batch_size)
 
     # src_vocab_file_path = source_tokenizer.vocab_size + 2
     # tgt_vocab_file_path = target_tokenizer.vocab_size + 2
 
-    # sentence_tokenizer = SentenceTokenizer(src_lang_file_path, tgt_lang_file_path, 100)
+    sentence_tokenizer = SentenceTokenizer(src_lang_file_path, tgt_lang_file_path, batch_size)
     #
     # # train_dataset = load_dataset(src_lang_file_path, tgt_lang_file_path)
-    # train_dataset = sentence_tokenizer.load_and_tokenize();
+    train_dataset = sentence_tokenizer.load_and_tokenize()
 
     # Define the hypermarkets
-    d_model = 512
+    d_model = 768
     num_layers = 6
     num_heads = 8
     dff = 2048
@@ -84,15 +86,17 @@ def main(argv):
     # # Compute the vocab sizes. +2 for <start> and <end> tokens
     # input_vocab_size = target_vocab_size = tokenizer.vocab_size + 2
 
-    # source_vocab = load_vocab(src_vocab_file_path)
-    # input_vocab_size = vocab_size(source_vocab)
-    # target_vocab = load_vocab(tgt_vocab_file_path)
-    # target_vocab_size = vocab_size(target_vocab)
+    source_vocab = sentence_tokenizer.load_vocab(src_vocab_file_path)
+    input_vocab_size = sentence_tokenizer.vocab_size(source_vocab)
+    target_vocab = sentence_tokenizer.load_vocab(tgt_vocab_file_path)
+    target_vocab_size = sentence_tokenizer.vocab_size(target_vocab)
 
     # Initialize the transformer model for transfer learning
-    cnt_transformer = CntTransformer(
-        input_vocab_size=source_tokenizer.vocab_size + 2,
-        target_vocab_size=target_tokenizer.vocab_size + 2,
+    cnt_transformer = CtnTransformer(
+        # input_vocab_size=source_tokenizer.vocab_size + 2,
+        # target_vocab_size=target_tokenizer.vocab_size + 2,
+        input_vocab_size=input_vocab_size,
+        target_vocab_size= target_vocab_size,
         d_model=d_model,
         num_layers=num_layers,
         num_heads=num_heads,
@@ -103,11 +107,11 @@ def main(argv):
     # Create the Transformer model
     cnt_transformer.create_transformer()
 
-    # Create the optimizer and loss object
-    cnt_transformer.create_optimizer(learning_rate=learning_rate)
-
-    # Create loss function
-    cnt_transformer.create_cross_entropy()
+    # # Create the optimizer and loss object
+    # cnt_transformer.create_optimizer(learning_rate=learning_rate)
+    #
+    # # Create loss function
+    # cnt_transformer.create_cross_entropy()
 
     # Create the metrics for monitoring training
     cnt_transformer.create_metrics()
@@ -119,7 +123,7 @@ def main(argv):
 
     # Assuming `dataset` is your tf.data.Dataset object with inputs and targets
     epochs = 2  # Set your desired number of epochs
-    train_cnt_model.train(tf_dataset, epochs)
+    train_cnt_model.train(train_dataset, epochs)
 
 
 if __name__ == '__main__':
