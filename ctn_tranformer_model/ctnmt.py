@@ -30,7 +30,7 @@ import numpy as np
 
 class CTNMTransformer(tf.keras.Model):
     def __init__(self, gate_size):
-        ...
+        super().__init__()  # add this line
         # Initialize gate parameters
         self.W = self.add_weight(shape=(gate_size, gate_size), initializer='random_normal', dtype=tf.float32)
         self.U = self.add_weight(shape=(gate_size, gate_size), initializer='random_normal', dtype=tf.float32)

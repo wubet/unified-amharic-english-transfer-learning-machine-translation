@@ -30,6 +30,8 @@ class CtnTransformer:
         self.teacher_model = None
         self.student_encoder = None
         self.student_decoder = None
+        self.encoder_input_layer = None
+        self.enc_padding_mask_layer = None
         self.switch_epoch = 5  # Presumably, the epoch at which some change in the training process is made.
 
     # It creates a transformer model.
@@ -65,10 +67,19 @@ class CtnTransformer:
         # encoder_outputs = encoder_outputs_layer(encoder_outputs)
 
         # Create the self.student_encoder model directly.
-        self.student_encoder = tf.keras.models.Model([encoder_inputs, decoder_inputs], encoder_outputs)
-        # self.student_encoder = [encoder_outputs, encoder_hidden]
-        # self.student_decoder = self.get_student_decoder(encoder_outputs)
+        # self.student_encoder = tf.keras.models.Model([encoder_inputs, decoder_inputs], encoder_outputs)
 
+        # self.student_encoder = self.transformer.encoder()
+        # tf.keras.models.Model([encoder_inputs, enc_padding_mask], encoder_outputs)
+
+        # Model definition (or wherever you define your layers)
+        # self.encoder_input_layer = tf.keras.Input(shape=(None,), dtype=tf.int32)
+        # self.student_encoder = tf.keras.models.Model([encoder_inputs], encoder_outputs)
+
+        # Create the complete Transformer model.
+        self.enc_padding_mask_layer = tf.keras.Input(shape=(1, 1, None), dtype=tf.float32)
+
+        # self.student_decoder = self.get_student_decoder()
 
         # Create the complete Transformer model.
         self.transformer_model = tf.keras.models.Model(inputs=[encoder_inputs, decoder_inputs], outputs=encoder_outputs)
@@ -187,53 +198,111 @@ class CtnTransformer:
         # switched_output = g * teacher_enc_output + (1 - g) * student_enc_output
         # return switched_output
 
-    def student_encoder(self, inputs, training, enc_padding_mask, dec_padding_mask, look_ahead_mask):
-        encoder_inputs, decoder_inputs = inputs
+    # def get_student_encoder(self, encoder_inputs, enc_padding_mask):
+    #
+    #     # Then, we'll apply this Encoder to the inputs.
+    #     encoder_outputs = self.transformer.encoder(encoder_inputs, True, enc_padding_mask)
+    #
+    #     # Finally, we'll create and return a Model.
+    #     return tf.keras.models.Model([encoder_inputs, enc_padding_mask], encoder_outputs)
+
+    def student_encoder(self, encoder_inputs, training, enc_padding_mask):
+        # encoder_inputs, decoder_inputs = inputs
         # encoder_padding_mask = self.create_padding_mask(encoder_inputs)
         # decoder_padding_mask = self.create_padding_mask(decoder_inputs)
         # look_ahead_mask = self.create_look_ahead_mask(tf.shape(decoder_inputs)[1])
 
-        encoder_outputs, encoder_hidden = self.transformer.encoder(encoder_inputs, training, enc_padding_mask)
+        encoder_outputs = self.transformer.encoder(encoder_inputs, training, enc_padding_mask)
 
-        decoder_outputs, decoder_hidden = self.transformer.decoder(
-            decoder_inputs, encoder_outputs, training, look_ahead_mask, dec_padding_mask
-        )
+        # decoder_outputs, decoder_hidden = self.transformer.decoder(
+        #     decoder_inputs, encoder_outputs, training, look_ahead_mask, dec_padding_mask
+        # )
 
-        return [encoder_outputs, encoder_hidden]
+        return [encoder_outputs]
 
+    def get_student_encoder(self):
+        encoder_input = tf.keras.Input(shape=(None,), dtype=tf.int32)
+        enc_padding_mask = tf.keras.Input(shape=(1, 1, None), dtype=tf.float32)
 
-    def get_student_decoder(self, enc_output, target_seq_len):
-        # tar = tf.keras.layers.Input(shape=(None,))
-        # look_ahead_mask = tf.keras.layers.Input(shape=(1, None, None))
-        # padding_mask = tf.keras.layers.Input(shape=(1, 1, None))
-        # dec_output, attention_weights = self.transformer.decoder(x=tar, enc_output=enc_output, training=True,
-        #                                                          look_ahead_mask=look_ahead_mask,
-        #                                                          padding_mask=padding_mask)
-        #
-        # return tf.keras.models.Model(inputs=[tar, enc_output, look_ahead_mask, padding_mask],
-        #                              outputs=[dec_output, attention_weights])
-        # tar = tf.keras.layers.Input(shape=(None,))
-        # look_ahead_mask = tf.keras.layers.Input(shape=(1, None, None))
-        # padding_mask = tf.keras.layers.Input(shape=(1, 1, None))
-        # dec_output, _ = self.transformer.decoder(x=tar, enc_output=enc_output, training=True,
-        #                                          look_ahead_mask=look_ahead_mask,
-        #                                          padding_mask=padding_mask)
-        #
-        # return tf.keras.models.Model(inputs=[tar, look_ahead_mask, padding_mask],
-        #                              outputs=dec_output)
-        # Create input layers for the decoder.
-        # Create input layers for the decoder.
-        tar = tf.keras.layers.Input(shape=(target_seq_len,))
+        encoder_outputs = self.transformer.encoder(encoder_input, True, enc_padding_mask)
+        return tf.keras.models.Model(inputs=[encoder_input, enc_padding_mask],
+                                     outputs=[encoder_outputs])
+
+    # def student_encoder(self, inputs, training, enc_padding_mask, dec_padding_mask, look_ahead_mask):
+    #     encoder_inputs, decoder_inputs = inputs
+    #     # encoder_padding_mask = self.create_padding_mask(encoder_inputs)
+    #     # decoder_padding_mask = self.create_padding_mask(decoder_inputs)
+    #     # look_ahead_mask = self.create_look_ahead_mask(tf.shape(decoder_inputs)[1])
+    #
+    #     encoder_outputs, encoder_hidden = self.transformer.encoder(encoder_inputs, training, enc_padding_mask)
+    #
+    #     decoder_outputs, decoder_hidden = self.transformer.decoder(
+    #         decoder_inputs, encoder_outputs, training, look_ahead_mask, dec_padding_mask
+    #     )
+    #
+    #     return [encoder_outputs, encoder_hidden]
+
+    # def get_student_decoder(self, enc_output, target_seq_len):
+    #     # tar = tf.keras.layers.Input(shape=(None,))
+    #     # look_ahead_mask = tf.keras.layers.Input(shape=(1, None, None))
+    #     # padding_mask = tf.keras.layers.Input(shape=(1, 1, None))
+    #     # dec_output, attention_weights = self.transformer.decoder(x=tar, enc_output=enc_output, training=True,
+    #     #                                                          look_ahead_mask=look_ahead_mask,
+    #     #                                                          padding_mask=padding_mask)
+    #     #
+    #     # return tf.keras.models.Model(inputs=[tar, enc_output, look_ahead_mask, padding_mask],
+    #     #                              outputs=[dec_output, attention_weights])
+    #     # tar = tf.keras.layers.Input(shape=(None,))
+    #     # look_ahead_mask = tf.keras.layers.Input(shape=(1, None, None))
+    #     # padding_mask = tf.keras.layers.Input(shape=(1, 1, None))
+    #     # dec_output, _ = self.transformer.decoder(x=tar, enc_output=enc_output, training=True,
+    #     #                                          look_ahead_mask=look_ahead_mask,
+    #     #                                          padding_mask=padding_mask)
+    #     #
+    #     # return tf.keras.models.Model(inputs=[tar, look_ahead_mask, padding_mask],
+    #     #                              outputs=dec_output)
+    #     # Create input layers for the decoder.
+    #     # Create input layers for the decoder.
+    #     tar = tf.keras.layers.Input(shape=(target_seq_len,))
+    #     look_ahead_mask = tf.keras.layers.Input(shape=(1, None, None))
+    #     padding_mask = tf.keras.layers.Input(shape=(1, 1, None))
+    #
+    #     # Get the decoder outputs and hidden state from the decoder model
+    #     decoder_inputs = [tar, look_ahead_mask, padding_mask]  # Remove enc_output from decoder inputs
+    #     dec_output, _ = self.transformer.decoder(
+    #         tar, enc_output=enc_output, training=True, look_ahead_mask=look_ahead_mask, padding_mask=padding_mask
+    #     )
+    #
+    #     return tf.keras.models.Model(inputs=decoder_inputs, outputs=dec_output)
+
+    def get_student_decoder(self):
+        # Define the layers as instance attributes in the __init__ method
+        tgt_inp = tf.keras.layers.Input(shape=(None,))  # Adjust the shape as needed
         look_ahead_mask = tf.keras.layers.Input(shape=(1, None, None))
         padding_mask = tf.keras.layers.Input(shape=(1, 1, None))
+        enc_output = tf.keras.layers.Input(
+            shape=(None, self.d_model))  # Assuming d_model is the number of dimensions
 
         # Get the decoder outputs and hidden state from the decoder model
-        decoder_inputs = [tar, look_ahead_mask, padding_mask]  # Remove enc_output from decoder inputs
         dec_output, _ = self.transformer.decoder(
-            tar, enc_output=enc_output, training=True, look_ahead_mask=look_ahead_mask, padding_mask=padding_mask
+            tgt_inp, enc_output=enc_output, training=True, look_ahead_mask=look_ahead_mask,
+            padding_mask=padding_mask
         )
 
-        return tf.keras.models.Model(inputs=decoder_inputs, outputs=dec_output)
+        # Apply the final dense layer to transform to vocab size
+        final_output = self.transformer.final_layer(dec_output)  # This line was missing
+
+        return tf.keras.models.Model(
+            inputs=[tgt_inp, look_ahead_mask, padding_mask, enc_output], outputs=[dec_output, final_output])
+
+    # def loss_function(self, real, pried):
+    #     loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
+    #     mask = tf.math.logical_not(tf.math.equal(real, 0))
+    #     loss_ = loss_object(real, pried)
+    #
+    #     mask = tf.cast(mask, dtype=loss_.dtype)
+    #     loss_ *= mask
+    #     return tf.reduce_sum(loss_) / tf.reduce_sum(mask)
 
     def loss_function(self, real, pried):
         loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')

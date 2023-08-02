@@ -76,7 +76,7 @@ def main(argv):
     dropout_rate = 0.1
     learning_rate = 2.0
 
-    # Load the teacher model
+    # # Load the teacher model
     teacher_model_path = pre_trained_model_path  # Path to the pretrained model
 
     # # Load the dataset to calculate the vocab sizes

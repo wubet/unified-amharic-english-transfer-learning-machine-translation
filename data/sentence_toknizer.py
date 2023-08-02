@@ -11,7 +11,7 @@ class SentenceTokenizer:
         self.batch_size = batch_size
 
         # Initialize the BERT tokenizer
-        self.tokenizer = BertTokenizer.from_pretrained('bert-large-uncased')
+        self.tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
 
     def tokenize_sentences(self, sentence):
         # Wrap encode_plus method into a tf.py_function

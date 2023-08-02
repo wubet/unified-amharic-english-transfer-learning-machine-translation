@@ -1,5 +1,7 @@
 import tensorflow as tf
-from tensorflow.keras.preprocessing.text import Tokenizer
+
+
+# from tensorflow.keras.preprocessing.text import Tokenizer
 
 
 def positional_encoding(position, d_model):
@@ -46,39 +48,37 @@ def load_dataset(src_file_path, tgt_file_path):
     return train_dataset
 
 
-from tensorflow.keras.preprocessing.text import Tokenizer
-
 # Initialize source and target tokenizers
 # These should be fit on your corpus beforehand
-src_tokenizer = Tokenizer()
-tgt_tokenizer = Tokenizer()
+# src_tokenizer = Tokenizer()
+# tgt_tokenizer = Tokenizer()
 
 
-def load_dataset(src_file_path, tgt_file_path, batch_size):
-    # Function to encode each sentence
-    def encode_sentence(src, tgt):
-        src = src_tokenizer.texts_to_sequences([src.numpy().decode('utf-8')])[0]
-        tgt = tgt_tokenizer.texts_to_sequences([tgt.numpy().decode('utf-8')])[0]
-        return src, tgt
-
-    # Use tf.py_function to allow the use of python function with tf.data pipeline
-    def tf_encode_sentence(src, tgt):
-        return tf.py_function(encode_sentence, [src, tgt], [tf.int64, tf.int64])
-
-    # Load the source and target files
-    src_dataset = tf.data.TextLineDataset(src_file_path)
-    tgt_dataset = tf.data.TextLineDataset(tgt_file_path)
-
-    # Zip the datasets together
-    train_dataset = tf.data.Dataset.zip((src_dataset, tgt_dataset))
-
-    # Map the encode_sentence function to each (src, tgt) pair in the dataset
-    train_dataset = train_dataset.map(tf_encode_sentence)
-
-    # Batch the dataset
-    train_dataset = train_dataset.batch(batch_size)
-
-    return train_dataset
+# def load_dataset(src_file_path, tgt_file_path, batch_size):
+#     # Function to encode each sentence
+#     def encode_sentence(src, tgt):
+#         src = src_tokenizer.texts_to_sequences([src.numpy().decode('utf-8')])[0]
+#         tgt = tgt_tokenizer.texts_to_sequences([tgt.numpy().decode('utf-8')])[0]
+#         return src, tgt
+#
+#     # Use tf.py_function to allow the use of python function with tf.data pipeline
+#     def tf_encode_sentence(src, tgt):
+#         return tf.py_function(encode_sentence, [src, tgt], [tf.int64, tf.int64])
+#
+#     # Load the source and target files
+#     src_dataset = tf.data.TextLineDataset(src_file_path)
+#     tgt_dataset = tf.data.TextLineDataset(tgt_file_path)
+#
+#     # Zip the datasets together
+#     train_dataset = tf.data.Dataset.zip((src_dataset, tgt_dataset))
+#
+#     # Map the encode_sentence function to each (src, tgt) pair in the dataset
+#     train_dataset = train_dataset.map(tf_encode_sentence)
+#
+#     # Batch the dataset
+#     train_dataset = train_dataset.batch(batch_size)
+#
+#     return train_dataset
 
 
 # load vocabulary file
@@ -94,23 +94,23 @@ def load_dataset(src_file_path, tgt_file_path, batch_size):
 
 
 # Create tokenizer from the vocab
-def create_tokenizer(vocab):
-    tokenizer = Tokenizer()
-    tokenizer.fit_on_texts(vocab)
-    return tokenizer
-
-
-def read_file_ignore_errors(file_path):
-    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-        return f.read()
-
-
-# Convert attention mask to 1s and 0s format and add extra dimensions to match the `hidden_states` tensor's shape
-def create_attention_mask(attention_mask):
-    attention_mask = tf.cast(attention_mask, tf.float32)
-    extended_attention_mask = attention_mask[:, tf.newaxis, tf.newaxis, :]
-    extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
-    return extended_attention_mask
+# def create_tokenizer(vocab):
+#     tokenizer = Tokenizer()
+#     tokenizer.fit_on_texts(vocab)
+#     return tokenizer
+#
+#
+# def read_file_ignore_errors(file_path):
+#     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+#         return f.read()
+#
+#
+# # Convert attention mask to 1s and 0s format and add extra dimensions to match the `hidden_states` tensor's shape
+# def create_attention_mask(attention_mask):
+#     attention_mask = tf.cast(attention_mask, tf.float32)
+#     extended_attention_mask = attention_mask[:, tf.newaxis, tf.newaxis, :]
+#     extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
+#     return extended_attention_mask
 
 
 def create_padding_mask(seq):
@@ -123,14 +123,19 @@ def create_look_ahead_mask(size):
     return mask  # (seq_len, seq_len)
 
 
-def create_masks(tgt):
+def create_combined_masks(tgt):
     look_ahead_mask = create_look_ahead_mask(tf.shape(tgt)[1])
     dec_target_padding_mask = create_padding_mask(tgt)
     combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
     return combined_mask
 
 
+def create_look_ahead_attention_mask(size):
+    mask = 1 - tf.linalg.band_part(tf.ones((size, size)), -1, 0)
+    look_ahead_mask = tf.expand_dims(mask, 0)  # Now shape is (1, 441, 441)
+    look_ahead_mask = tf.expand_dims(look_ahead_mask, 1)  # Now shape is (1, 1, 441, 441)
+    return look_ahead_mask  # (1, 1, seq_len, seq_len)
+
+
 def mse_loss(teacher_enc_output, student_enc_output):
     return tf.reduce_mean(tf.square(teacher_enc_output - student_enc_output))
-
-

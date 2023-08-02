@@ -16,92 +16,112 @@ class TrainCntModel:
 
     # @tf.function
     def train_step(self, src, tgt, optimizer, distillation_rate):
-        # teacher_mask = create_padding_mask(src)
         tgt_inp = tgt[:, :-1]
         tgt_real = tgt[:, 1:]
 
-        # Get the dynamic shape of the tensor
-        dynamic_shape = tf.shape(tgt_inp)
+        enc_padding_mask = create_padding_mask(src)
+
+        # Get the tgt shape of the tensor
+        tgt_shape = tf.shape(tgt_inp)
 
         # Extract the value of seq_len
-        seq_len = dynamic_shape[1]
+        tgt_seq_len = tgt_shape[1]
+        look_ahead_mask = create_look_ahead_attention_mask(tgt_seq_len)
 
-        nmt_mask = create_masks(tgt_inp)
-        teacher_hidden_states = None
+        nmt_mask = create_padding_mask(src)
+
+        teacher_hidden_enc = None
 
         with tf.GradientTape() as tape:
-            # teacher_enc_output = teacher_encoder(src, training=False, mask=teacher_mask)
             teacher_enc_output = self.ctn_transformer.teacher_model(src, training=False)
 
-            # teacher_hidden_states = teacher_enc_output[1]
-
-            # # Assuming teacher_enc_output is a dictionary or dictionary-like object
+            # Assuming teacher_enc_output is a dictionary or dictionary-like object
             if 'last_hidden_state' in teacher_enc_output:
-                teacher_hidden_states = teacher_enc_output['last_hidden_state']
+                teacher_hidden_enc = teacher_enc_output['last_hidden_state']
 
             # Get the shape of teacher_hidden_state
-            teacher_hidden_shape = tf.shape(teacher_hidden_states)
+            teacher_hidden_shape = tf.shape(teacher_hidden_enc)
 
             # Extract the size value of the third dimension (weight)
-            weight_size =  teacher_hidden_shape[2]
+            weight_size = teacher_hidden_shape[2]
 
-            # # Get the size of the second dimension (weight)
-            # weight_size = tf.shape(teacher_hidden_states)[1]
+            # encoder_inputs = self.ctn_transformer.encoder_input_layer(src)
+
+            # enc_padding_mask_input = self.ctn_transformer.enc_padding_mask_layer(enc_padding_mask)
 
             # Call the student_encoder with the appropriate inputs.
-            student_enc_output = self.ctn_transformer.student_encoder([src, tgt_inp], training=True)
+            student_enc_output = self.ctn_transformer.get_student_encoder()([src, enc_padding_mask], training=True)
 
-            # # Get the final hidden state for each sequence in the batch
-            # # Assuming the last axis (fully_connected_dim) represents the hidden state
+            # student_enc_output = self.ctn_transformer.student_encoder([src], training=True)
+
+            # Get the final hidden state for each sequence in the batch
             student_enc_hidden = student_enc_output[:, -1, :]
 
-            # # Get the shape of the student_enc_output tensor
-            # student_enc_shape = tf.shape(student_enc_output)
-            #
-            # # Get the index of the last time step along the sequence length dimension
-            # last_time_step = student_enc_shape[1] - 1
-            #
-            # # Use tf.gather to get the last hidden state
-            # student_enc_hidden = tf.gather(student_enc_output, last_time_step, axis=1)
-
-            # Get the last hidden state of student_enc_output
-            # student_hidden_state = tf.reduce_last(student_enc_output, axis=1)
-
-            # student_dec_output = self.ctn_transformer.get_student_decoder(student_enc_output, seq_len)
-
-            ctnm_transformer = CTNMTransformer(768)
-            print("success")
+            ctnm_transformer = CTNMTransformer(weight_size)
 
             # Apply dynamic switch and asymptotic distillation
-            combined_enc_output = ctnm_transformer.dynamic_switch(teacher_enc_output, student_enc_output)
-            # combined_enc_output = self.ctn_transformer.dynamic_switch(teacher_enc_output, student_enc_output,
-            # dynamic_switch_rate)
-            # combined_dec_output = self.ctn_transformer.dynamic_switch(teacher_enc_output, student_dec_output,
-            #                                                           dynamic_switch_rate)
+            combined_enc_output = ctnm_transformer.dynamic_switch(teacher_hidden_enc, student_enc_output)
 
             # Use combined_enc_output as input to the student_decoder
-            student_dec_output, _ = self.ctn_transformer.student_decoder(tgt_inp, student_enc_hidden,
-                                                                         combined_enc_output,
-                                                                         training=True, mask=nmt_mask)
+            # student_dec_output, _ = self.ctn_transformer.student_decoder(tgt_inp, student_enc_output,
+            #                                                              combined_enc_output,
+            #                                                              training=True, mask=nmt_mask)
+            print("before student_dec_output")
+            # student_dec_output = self.ctn_transformer.student_decoder(tgt_inp, look_ahead_mask, nmt_mask, combined_enc_output)
+            print(
+                f'Calling student_decoder with inputs: {tgt_inp.shape}, {look_ahead_mask.shape}, {nmt_mask.shape}, {combined_enc_output.shape}')
+            # student_dec_output = self.ctn_transformer.student_decoder(
+            #     [tgt_inp, look_ahead_mask, nmt_mask, combined_enc_output])
+            student_dec_output, student_prediction = self.ctn_transformer.get_student_decoder()(
+                [tgt_inp, look_ahead_mask, nmt_mask, combined_enc_output])
 
-            nmt_loss = self.ctn_transformer.loss_function(tgt_real, student_dec_output)
+            print("student_dec_output: ", student_dec_output.shape)
+            # print("student_prediction: ", student_prediction.shape)
+
+            # predicted_tokens = tf.argmax(student_dec_output, axis=-1)
+            # print("predicted_tokens: ", predicted_tokens.shape)
+            # predicted_tokens = tf.argmax(student_dec_output, axis=-1)
+            #
+            # tgt_real = tf.reshape(tgt_real, [10, 441])
+            # print("tgt_real: ", tgt_real.shape)
+
+            nmt_loss = self.ctn_transformer.loss_function(tgt_real, student_prediction)
             # nmt_loss = self.ctn_transformer.loss_function(tgt_real, combined_dec_output)
+            print("nmt_loss succeed")
 
-            distillation_loss = mse_loss(teacher_enc_output, student_enc_output)
+            print("teacher_hidden_enc shape:", teacher_hidden_enc.shape)
+            print("student_enc_output shape:", student_enc_output.shape)
+
+            distillation_loss = mse_loss(teacher_hidden_enc, student_enc_output)
+            print("distillation_loss succeed")
 
             combined_loss = nmt_loss * distillation_rate + distillation_loss * (1 - distillation_rate)
+            print("combined_loss succeed")
 
-        gradients = tape.gradient(combined_loss,
-                                  self.ctn_transformer.transformer_model.student_encoder.trainable_variables +
-                                  self.ctn_transformer.transformer_model.student_decoder.trainable_variables)
-        optimizer.apply_gradients(
-            zip(gradients, self.ctn_transformer.transformer_model.student_encoder.trainable_variables +
-                self.ctn_transformer.transformer_model.student_decoder.trainable_variables))
+        # gradients = tape.gradient(combined_loss,
+        #                           self.ctn_transformer.transformer.encoder.trainable_variables +
+        #                           self.ctn_transformer.transformer.decoder.trainable_variables)
+        # print("tape.gradient succeed")
+
+            # combined_loss = nmt_loss * distillation_rate + distillation_loss * (1 - distillation_rate)
+            # print("combined_loss succeed")
+
+        # Compute gradients for NMT outside the with-block
+        nmt_gradients = tape.gradient(combined_loss, self.ctn_transformer.transformer.encoder.trainable_variables +
+                                      self.ctn_transformer.transformer.decoder.trainable_variables)
+        # print("nmt_gradients:", nmt_gradients)
+
+        # Get NMT variables
+        nmt_variables = self.ctn_transformer.transformer.encoder.trainable_variables + self.ctn_transformer.transformer.decoder.trainable_variables
+        # print("nmt_variables:", nmt_variables)
+
+        # Apply gradients
+        optimizer.apply_gradients(nmt_gradients, nmt_variables)
 
         return combined_loss, nmt_loss, distillation_loss
 
     def train(self, dataset, epochs):
-        optimizers = RateScheduledOptimizers(learning_rate_bert=1e-5, learning_rate_nmt=1e-3)
+        optimizers = RateScheduledOptimizers(learning_rate_nmt=1e-3)
         # For each epoch,
         for epoch in range(epochs):
             # The recorded loss and accuracy are reset.
