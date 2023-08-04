@@ -12,6 +12,17 @@ class Transformer(tf.keras.Model, ABC):
     """
     # This method initializes an instance of the Transformer class.
     def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size, target_vocab_size, dropout_rate=0.1):
+        """
+       Initialize the Transformer class with the following parameters:
+
+       :param num_layers: int, the number of encoder and decoder layers.
+       :param d_model: int, the dimension of the key, query, and value vectors, also known as the embedding dimension.
+       :param num_heads: int, the number of attention heads for the multi-head attention mechanism.
+       :param dff: int, the dimensionality of the "feed forward" network inside the encoder and decoder layers.
+       :param input_vocab_size: int, the size of the input vocabulary.
+       :param target_vocab_size: int, the size of the target vocabulary.
+       :param dropout_rate: float, optional, the dropout rate to be applied to certain layers to prevent overfitting. Default is 0.1.
+       """
         # Call the parent class' constructor.
         super(Transformer, self).__init__()
 
@@ -45,9 +56,9 @@ class Transformer(tf.keras.Model, ABC):
         :param dec_padding_mask:
             Boolean mask for the second multihead attention layer
         :return:
-            final_output -- Describe me
-            attention_weights - Dictionary of tensors containing all the attention weights for the decoder
-                                each of shape Tensor of shape (batch_size, num_heads, target_seq_len, input_seq_len)
+             final_output: Tensor, shape (batch_size, target_seq_len, target_vocab_size), the final output of the Transformer, containing the predicted probabilities for each token in the target vocabulary.
+            attention_weights: Dictionary of tensors containing all the attention weights for the decoder, each of shape (batch_size, num_heads, target_seq_len, input_seq_len).
+            enc_output: Tensor, shape (batch_size, input_seq_len, fully_connected_dim), the output of the encoder.
         """
 
         # call self.encoder with the appropriate arguments to get the encoder output

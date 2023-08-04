@@ -7,9 +7,22 @@ import tensorflow as tf
 
 
 class LanguageProcessor:
+    """
+    This class is responsible for processing language data, including tokenizing,
+    saving and loading tokenized data, and batching data with bucketing.
+    """
 
     def __init__(self, eng_lang_file_path, amh_lang_file_path, eng_vocab_file_path,
                  amh_vocab_file_path, batch_size):
+        """
+        Initializes the LanguageProcessor.
+
+        :param eng_lang_file_path: Path to the English language file.
+        :param amh_lang_file_path: Path to the Amharic language file.
+        :param eng_vocab_file_path: Path to the English vocabulary file.
+        :param amh_vocab_file_path: Path to the Amharic vocabulary file.
+        :param batch_size: Size of the batches for training.
+        """
         self.eng_file = eng_lang_file_path
         self.amh_file = amh_lang_file_path
         self.eng_vocab_file = eng_vocab_file_path
@@ -19,6 +32,11 @@ class LanguageProcessor:
         self.tokenizer_tgt = None
 
     def tokenize(self):
+        """
+        Tokenizes the English and Amharic sentences.
+
+        :return: Tokenized source and target sentences.
+        """
         with open(self.eng_file, 'r', encoding='utf-8') as file:
             src_sentences = file.read().split('\n')
         src_tokens = [self.tokenizer_src.encode(sentence, truncation=True, padding='max_length', max_length=128) for
@@ -40,12 +58,27 @@ class LanguageProcessor:
         return src_tokens, tgt_tokens
 
     def save_tokenized_data(self, src_tokens, tgt_tokens, src_file='eng_tokens.pkl', tgt_file='amh_tokens.pkl'):
+        """
+        Saves the tokenized data.
+
+        :param src_tokens: Tokenized source sentences.
+        :param tgt_tokens: Tokenized target sentences.
+        :param src_file: File name for saving source tokens.
+        :param tgt_file: File name for saving target tokens.
+        """
         with open(src_file, 'wb') as f:
             pickle.dump(src_tokens, f)
         with open(tgt_file, 'wb') as f:
             pickle.dump(tgt_tokens, f)
 
     def load_tokenized_data(self, src_file='eng_tokens.pkl', tgt_file='amh_tokens.pkl'):
+        """
+        Loads the tokenized data.
+
+        :param src_file: File name for loading source tokens.
+        :param tgt_file: File name for loading target tokens.
+        :return: Loaded source and target tokens.
+        """
         with open(src_file, 'rb') as f:
             src_tokens = pickle.load(f)
         with open(tgt_file, 'rb') as f:
@@ -53,6 +86,11 @@ class LanguageProcessor:
         return src_tokens, tgt_tokens
 
     def load_vocab(self):
+        """
+        Loads the vocabularies for both English and Amharic.
+
+        :return: Sizes of the English and Amharic vocabularies.
+        """
         if not os.path.exists(self.eng_vocab_file) or not os.path.exists(self.amh_vocab_file + ".model"):
             _, _ = self.tokenize()
 
@@ -65,6 +103,11 @@ class LanguageProcessor:
         return eng_vocab_size, amh_vocab_size
 
     def get_bucketed_batches(self):
+        """
+       Gets batches of data with bucketing.
+
+       :return: A dataset of bucketed batches.
+       """
         if os.path.exists('eng_tokens.pkl') and os.path.exists('amh_tokens.pkl'):
             src_tokens, tgt_tokens = self.load_tokenized_data()
         else:

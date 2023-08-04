@@ -139,3 +139,16 @@ def create_look_ahead_attention_mask(size):
 
 def mse_loss(teacher_enc_output, student_enc_output):
     return tf.reduce_mean(tf.square(teacher_enc_output - student_enc_output))
+
+
+def adjust_learning_rate(self, epoch, learning_rate):
+    def some_decay_function(epoch):
+        decay_factor = 0.5
+        decay_step = 10
+        multiplier = decay_factor ** (epoch // decay_step)
+        return multiplier
+
+    # Compute the new learning rate using the decay function
+    new_learning_rate = learning_rate * some_decay_function(epoch)
+
+    return new_learning_rate

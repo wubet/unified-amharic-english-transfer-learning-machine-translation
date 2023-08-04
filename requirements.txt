@@ -4,3 +4,5 @@ transformers~=4.31.0
 tokenization~=1.0.7
 bert-for-tf2~=0.14.9
 sentencepiece~=0.1.99
+matplotlib~=3.7.2
+pandas~=2.0.3

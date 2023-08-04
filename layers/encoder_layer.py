@@ -5,6 +5,16 @@ from tensorflow.keras import layers
 class EncoderLayer(tf.keras.layers.Layer):
     # Initialize the layer with its internal components.
     def __init__(self, d_model, num_heads, dff, dropout_rate=0.1):
+        """
+        Initialize the EncoderLayer class with the following parameters:
+
+       :param d_model: int, the dimension of the key, query, and value vectors, commonly referred to as the embedding dimension.
+       :param num_heads: int, the number of attention heads for the multi-head attention mechanism.
+       :param dff: int, the dimensionality of the "feed forward" network inside the encoder layer.
+       :param dropout_rate: float, the dropout rate to be applied to certain layers to prevent overfitting. Default is 0.1.
+
+       :return: None
+       """
         # Call the initializer of the parent class.
         super(EncoderLayer, self).__init__()
 

@@ -14,6 +14,16 @@ class Encoder(tf.keras.layers.Layer):
 
     # The constructor for Encoder class.
     def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size, dropout_rate=0.1):
+        """
+       Initialize the Encoder class with the following parameters:
+
+       :param num_layers: int, the number of encoder layers.
+       :param d_model: int, the dimension of the key, query, and value vectors, also known as the embedding dimension.
+       :param num_heads: int, the number of attention heads for the multi-head attention mechanism.
+       :param dff: int, the dimensionality of the "feed forward" network inside the encoder layer.
+       :param input_vocab_size: int, the size of the input vocabulary, used for the embedding layer.
+       :param dropout_rate: float, optional, the dropout rate to be applied to certain layers to prevent overfitting. Default is 0.1.
+       """
         # Inherit all the properties from the parent class.
         super(Encoder, self).__init__()
 
@@ -36,6 +46,15 @@ class Encoder(tf.keras.layers.Layer):
         # Forward pass for the Encoder.
 
     def call(self, x, training, mask):
+        """
+       Forward pass for the Encoder.
+
+       :param x: Tensor, shape (batch_size, input_seq_len, d_model), the input sequence.
+       :param training: Boolean, set to true to activate the training mode for dropout layers.
+       :param mask: Boolean mask to ensure that padding is not treated as part of the input.
+
+       :return: Tensor, shape (batch_size, input_seq_len, d_model), the output of the encoder.
+       """
         # Get the sequence length.
         seq_len = tf.shape(x)[1]
 

@@ -11,6 +11,18 @@ class Decoder(tf.keras.layers.Layer):
     decoder Layers
     """
     def __init__(self, num_layers, d_model, num_heads, dff, target_vocab_size, dropout_rate=0.1):
+        """
+            Initialize the Decoder class with the following parameters:
+
+            :param num_layers: int, the number of decoder layers.
+            :param d_model: int, the dimension of the key, query, and value vectors, also known as the embedding dimension.
+            :param num_heads: int, the number of attention heads for the multi-head attention mechanism.
+            :param dff: int, the dimensionality of the "feed forward" network inside the decoder layer.
+            :param target_vocab_size: int, the size of the target vocabulary, used for the embedding layer.
+            :param dropout_rate: float, optional, the dropout rate to be applied to certain layers to prevent overfitting. Default is 0.1.
+
+            :return: None
+            """
         # Inherit all the properties from the parent class.
         super(Decoder, self).__init__()
 
