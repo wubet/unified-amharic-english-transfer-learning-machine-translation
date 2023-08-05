@@ -28,7 +28,7 @@ class TrainCntModel:
         self.target_language = target_language
         # Initializing checkpoint for saving the model and optimizer
         # Define a loss object
-        self.loss_object = tf.keras.losses.SparseCategoricalCrossentropy()
+        self.loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
         self.ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=RateScheduledOptimizers(
             learning_rate_nmt=self.learning_rate), net=self.ctn_transformer.transformer)
         # Checkpoint manager to handle checkpoint saving
@@ -106,13 +106,10 @@ class TrainCntModel:
             combined_loss = nmt_loss * distillation_rate + distillation_loss * (1 - distillation_rate)
 
         all_trainable_variables = (self.ctn_transformer.transformer.encoder.trainable_variables +
-                                   self.ctn_transformer.transformer.decoder.trainable_variables)  # include other necessary variables
+                                   self.ctn_transformer.transformer.decoder.trainable_variables)
 
         nmt_gradients = tape.gradient(combined_loss, all_trainable_variables)
 
-        # # Compute gradients for encoder and decoder
-        # nmt_gradients = tape.gradient(combined_loss, self.ctn_transformer.transformer.encoder.trainable_variables +
-        #                               self.ctn_transformer.transformer.decoder.trainable_variables)
         # Get trainable variables for NMT model
         nmt_variables = self.ctn_transformer.transformer.encoder.trainable_variables + self.ctn_transformer.transformer.decoder.trainable_variables
         # Apply gradients to update the model parameters
@@ -156,7 +153,7 @@ class TrainCntModel:
                 self.steps.append(step_counter)
 
                 # Save a checkpoint every 10 steps
-                if step_counter % 10 == 0:
+                if step_counter % 5 == 0:
                     save_path = self.manager.save()
                     print(f"Saved checkpoint at step {step_counter}: {save_path}")
 
@@ -172,7 +169,7 @@ class TrainCntModel:
                         'learning_rate': self.learning_rates
                     })
                     # Now you can save the CSV file to the 'outputs' directory
-                    df.to_csv(os.path.join(output_dir, 'your_file_name.csv'), index=False)
+                    df.to_csv(os.path.join(output_dir, 'visualization_data.csv'), index=False)
 
             # Generate graphs
             visualize_transformer_training(range(1, len(self.accuracies) + 1), self.accuracies, self.losses,

@@ -100,7 +100,7 @@ def main(argv):
     train_cnt_model = TrainCntModel(cnt_transformer, check_point_path, learning_rate, source_language,
                                     target_language)
 
-    cnt_transformer.transformer_model.summary()
+    # cnt_transformer.transformer_model.summary()
 
     train_cnt_model.train(dataset, epochs)
 

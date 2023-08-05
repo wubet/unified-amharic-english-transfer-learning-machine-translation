@@ -70,8 +70,8 @@ class CtnTransformer:
                                                        look_ahead_mask,
                                                        dec_padding_mask)
 
-        # Create the complete Transformer model.
-        self.transformer_model = tf.keras.models.Model(inputs=[encoder_inputs, decoder_inputs], outputs=encoder_outputs)
+        # # # Create the complete Transformer model.
+        # self.transformer_model = tf.keras.models.Model(inputs=[encoder_inputs, decoder_inputs], outputs=encoder_outputs)
 
         # If a teacher model path is provided, load the teacher model (BERT).
         if self.teacher_model_path:
@@ -126,7 +126,7 @@ class CtnTransformer:
         )
 
         # Apply the final dense layer to transform to vocab size
-        final_output = self.transformer.final_layer(dec_output)  # This line was missing
+        final_output = self.transformer.final_layer(dec_output)
 
         return tf.keras.models.Model(
             inputs=[tgt_inp, look_ahead_mask, padding_mask, enc_output], outputs=[dec_output, final_output])
