@@ -1,5 +1,7 @@
 import tensorflow as tf
-from tensorflow.keras import layers
+# from tensorflow.keras import layers
+from keras import layers
+from common.attention import *
 
 
 class DecoderLayer(tf.keras.layers.Layer):
@@ -26,16 +28,15 @@ class DecoderLayer(tf.keras.layers.Layer):
         super(DecoderLayer, self).__init__()
 
         # Define the first multi-head attention layer, this will perform self-attention on the input.
-        self.mha1 = layers.MultiHeadAttention(num_heads=num_heads, key_dim=d_model, dropout=dropout_rate)
+        # self.mha1 = layers.MultiHeadAttention(num_heads=num_heads, key_dim=d_model, dropout=dropout_rate)
+        self.mha1 = MultiHeadAttention(d_model, num_heads)
 
         # Define the second multi-head attention layer, this will perform attention on the encoder output.
-        self.mha2 = layers.MultiHeadAttention(num_heads=num_heads, key_dim=d_model, dropout=dropout_rate)
+        # self.mha2 = layers.MultiHeadAttention(num_heads=num_heads, key_dim=d_model, dropout=dropout_rate)
+        self.mha2 = MultiHeadAttention(d_model, num_heads)
 
         # Define the pointwise feed-forward network.
-        self.ffn = tf.keras.Sequential([
-            layers.Dense(dff, activation='relu'),
-            layers.Dense(d_model)
-        ])
+        self.ffn = PositionWiseFFN(d_model, dff)
 
         # Define layer normalization layers, to stabilize the layer's inputs.
         self.layernorm1 = layers.LayerNormalization(epsilon=1e-6)
@@ -66,18 +67,23 @@ class DecoderLayer(tf.keras.layers.Layer):
             attn_weights_block2 -- Tensor of shape(batch_size, num_heads, target_seq_len, input_seq_len)
         """
         # Block 1: self-attention with look-ahead mask and layer normalization.
-        attn1, attn_weights_block1 = self.mha1(query=x, value=x, key=x, attention_mask=look_ahead_mask,
-                                               return_attention_scores=True,
-                                               training=training)
+        # attn1, attn_weights_block1 = self.mha1(query=x, value=x, key=x, attention_mask=look_ahead_mask,
+        #                                        return_attention_scores=True,
+        #                                        training=training)
+
+        attn1, attn_weights_block1 = self.mha1(x, x, x, look_ahead_mask)
 
         attn1 = self.dropout1(attn1, training=training)
         out1 = self.layernorm1(attn1 + x)
 
         # Block 2: attention with encoder output and padding mask and layer normalization.
-        attn2, attn_weights_block2 = self.mha2(query=out1, value=enc_output, key=enc_output,
-                                               attention_mask=padding_mask,
-                                               return_attention_scores=True,
-                                               training=training)
+        # attn2, attn_weights_block2 = self.mha2(query=out1, value=enc_output, key=enc_output,
+        #                                        attention_mask=padding_mask,
+        #                                        return_attention_scores=True,
+        #                                        training=training)
+        attn2, attn_weights_block2 = self.mha2(enc_output, enc_output,
+                                               out1, padding_mask
+                                               )
         attn2 = self.dropout2(attn2, training=training)
         out2 = self.layernorm2(out1 + attn2)
 

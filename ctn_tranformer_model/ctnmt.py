@@ -1,35 +1,32 @@
 import tensorflow as tf
-from transformers import BertModel, BertTokenizer
+# from transformers import BertModel, BertTokenizer
 import numpy as np
 
 
-# class CTNMTModel(tf.keras.Model):
-#     def __init__(self, bert_model, nmt_model):
-#         super(CTNMTModel, self).__init__()
-#         self.bert_model = bert_model
-#         self.nmt_model = nmt_model
-#         self.alpha = tf.Variable(0.5,
-#                                  trainable=False)  # hyper-parameter that balances preference between pre-training distillation and NMT objective
-#         self.context_gate = tf.keras.layers.Dense(1, activation='sigmoid')
-#
-#     def call(self, inputs):
-#         # Obtain the BERT hidden states
-#         bert_outputs = self.bert_model(inputs)[0]
-#         # Obtain the NMT hidden states
-#         nmt_outputs = self.nmt_model.encoder(inputs)
-#
-#         # Asymptotic distillation
-#         l2_loss = tf.reduce_mean(tf.math.squared_difference(bert_outputs, nmt_outputs))
-#
-#         # Dynamic switch
-#         g = self.context_gate(tf.concat([bert_outputs, nmt_outputs], axis=-1))
-#         switched_output = g * bert_outputs + (1 - g) * nmt_outputs
-#
-#         return switched_output, l2_loss
-
-
 class CTNMTransformer(tf.keras.Model):
+    """
+        The CTNMTransformer (Curriculum Teacher-Student Neural Machine Translation Transformer) model is designed to
+        integrate both teacher and student model outputs dynamically and also facilitate knowledge distillation
+        between the teacher and student models during training.
+
+        Attributes:
+        ----------
+        W, U : tf.Variable
+            Weight matrices for calculating the gate value.
+        b : tf.Variable
+            Bias term for calculating the gate value.
+        mse_loss : tf.keras.losses.MeanSquaredError
+            Mean squared error loss instance for computing distillation loss.
+    """
     def __init__(self, gate_size):
+        """
+            Initializes the CTNMTransformer with given gate size.
+
+            Parameters:
+            ----------
+            gate_size : int
+                The size for the gate matrix which determines the gate value during dynamic switching.
+        """
         super().__init__()  # add this line
         # Initialize gate parameters
         self.W = self.add_weight(shape=(gate_size, gate_size), initializer='random_normal', dtype=tf.float32)
@@ -41,6 +38,21 @@ class CTNMTransformer(tf.keras.Model):
         ...
 
     def dynamic_switch(self, teacher_enc_output, student_enc_output):
+        """
+            Perform dynamic switching to integrate teacher and student encoder outputs.
+
+            Parameters:
+            ----------
+            teacher_enc_output : tf.Tensor
+                The output from the teacher's encoder.
+            student_enc_output : tf.Tensor
+                The output from the student's encoder.
+
+            Returns:
+            ----------
+            tf.Tensor:
+                The combined encoder output using a dynamic gate mechanism.
+        """
         # Calculate the gate value
         g = tf.sigmoid(tf.matmul(teacher_enc_output, self.W) + tf.matmul(student_enc_output, self.U) + self.b)
         # Combine the teacher's and student's outputs
@@ -48,8 +60,46 @@ class CTNMTransformer(tf.keras.Model):
         return combined_enc_output
 
     def asymptotic_distillation(self, teacher_hidden_state, student_hidden_state):
+        """
+            Computes the Mean Squared Error (MSE) between the teacher and student hidden states
+            as a measure of distillation loss.
+
+            Parameters:
+            ----------
+            teacher_hidden_state : tf.Tensor
+                Hidden state from the teacher's model.
+            student_hidden_state : tf.Tensor
+                Hidden state from the student's model.
+
+            Returns:
+            ----------
+            tf.Tensor:
+                The computed MSE loss between teacher and student hidden states.
+        """
         # Calculate the MSE loss
         distillation_loss = self.mse_loss(teacher_hidden_state, student_hidden_state)
         return distillation_loss
 
-    ...
+    def generate_distillation_rate(self, current_epoch, total_epochs, start_rate=1.0, end_rate=0.0):
+        """
+            Linearly decrease the distillation_rate from start_rate to end_rate over the total_epochs.
+
+            Parameters:
+            ----------
+            current_epoch : int
+                The current epoch number (starting from 0).
+            total_epochs : int
+                The total number of epochs during training.
+            start_rate : float, optional
+                The starting value for distillation_rate at the beginning (epoch 0). Defaults to 1.0.
+            end_rate : float, optional
+                The ending value for distillation_rate at the end of training. Defaults to 0.0.
+
+            Returns:
+            ----------
+            float:
+                The calculated distillation_rate for the current epoch.
+        """
+        return start_rate - (current_epoch / (total_epochs - 1)) * (start_rate - end_rate)
+
+

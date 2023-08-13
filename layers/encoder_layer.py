@@ -1,5 +1,7 @@
 import tensorflow as tf
-from tensorflow.keras import layers
+# from tensorflow.keras import layers
+from keras import layers
+from common.attention import *
 
 
 class EncoderLayer(tf.keras.layers.Layer):
@@ -19,13 +21,11 @@ class EncoderLayer(tf.keras.layers.Layer):
         super(EncoderLayer, self).__init__()
 
         # Define the multi-head attention layer.
-        self.mha = layers.MultiHeadAttention(num_heads=num_heads, key_dim=d_model, dropout=dropout_rate)
+        # self.mha = layers.MultiHeadAttention(num_heads=num_heads, key_dim=d_model, dropout=dropout_rate)
+        self.mha = MultiHeadAttention(d_model, num_heads)
 
         # Define the pointwise feed-forward network.
-        self.ffn = tf.keras.Sequential([
-            layers.Dense(dff, activation='relu'),
-            layers.Dense(d_model)
-        ])
+        self.ffn = PositionWiseFFN(d_model, dff)
 
         # Define layer normalization layers to stabilize the layer's inputs.
         self.layernorm1 = layers.LayerNormalization(epsilon=1e-6)
@@ -49,7 +49,8 @@ class EncoderLayer(tf.keras.layers.Layer):
             attn_weights -- attention weights from MultiHeadAttention layer
         """
         # Calculate self-attention and apply dropout.
-        attn_output = self.mha(query=x, value=x, key=x, attention_mask=mask, training=training)
+        # attn_output = self.mha(query=x, value=x, key=x, attention_mask=mask, training=training)
+        attn_output, _ = self.mha(x, x, x, mask)
         attn_output = self.dropout1(attn_output, training=training)
 
         # Apply layer normalization to the sum of the input and the attention output.

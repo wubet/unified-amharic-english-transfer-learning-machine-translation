@@ -1,5 +1,6 @@
 import tensorflow as tf
-from tensorflow.keras import layers
+from keras import layers
+# from tensorflow.keras import layers
 from common.utils import positional_encoding
 from layers.encoder_layer import EncoderLayer
 import numpy as np
@@ -13,7 +14,8 @@ class Encoder(tf.keras.layers.Layer):
     """
 
     # The constructor for Encoder class.
-    def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size, dropout_rate=0.1):
+    def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size,
+                 max_positional_encoding, dropout_rate=0.1):
         """
        Initialize the Encoder class with the following parameters:
 
@@ -35,10 +37,14 @@ class Encoder(tf.keras.layers.Layer):
         self.embedding = layers.Embedding(input_vocab_size, d_model)
 
         # Generate the positional encodings.
-        self.pos_encoding = positional_encoding(input_vocab_size, self.d_model)
+        self.pos_encoding = positional_encoding(max_positional_encoding, self.d_model)
 
         # Create a list of EncoderLayer objects.
-        self.enc_layers = [EncoderLayer(d_model, num_heads, dff, dropout_rate) for _ in range(num_layers)]
+        self.enc_layers = [
+            EncoderLayer(
+                d_model, num_heads, dff, dropout_rate
+            ) for _ in range(num_layers)
+        ]
 
         # Initialize a dropout layer.
         self.dropout = layers.Dropout(dropout_rate)

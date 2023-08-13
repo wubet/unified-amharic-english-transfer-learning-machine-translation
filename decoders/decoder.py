@@ -1,5 +1,6 @@
 import tensorflow as tf
-from tensorflow.keras import layers
+from keras import layers
+# from tensorflow.keras import layers
 from common.utils import positional_encoding
 from layers.decoder_layer import DecoderLayer
 
@@ -10,7 +11,8 @@ class Decoder(tf.keras.layers.Layer):
     and using positional encoding to then pass the output through a stack of
     decoder Layers
     """
-    def __init__(self, num_layers, d_model, num_heads, dff, target_vocab_size, dropout_rate=0.1):
+    def __init__(self, num_layers, d_model, num_heads, dff, target_vocab_size, max_position_encoding,
+                 dropout_rate=0.1):
         """
             Initialize the Decoder class with the following parameters:
 
@@ -34,10 +36,13 @@ class Decoder(tf.keras.layers.Layer):
         self.embedding = layers.Embedding(target_vocab_size, d_model)
 
         # Generate the positional encodings.
-        self.pos_encoding = positional_encoding(target_vocab_size, d_model)
+        self.pos_encoding = positional_encoding(max_position_encoding, d_model)
 
         # Create a list of DecoderLayer objects.
-        self.dec_layers = [DecoderLayer(d_model, num_heads, dff, dropout_rate) for _ in range(num_layers)]
+        self.dec_layers = [
+            DecoderLayer(
+                d_model, num_heads, dff, dropout_rate
+            ) for _ in range(num_layers)]
 
         # Initialize a dropout layer.
         self.dropout = layers.Dropout(dropout_rate)

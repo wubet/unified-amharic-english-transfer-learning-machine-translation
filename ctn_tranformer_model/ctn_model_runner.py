@@ -1,179 +1,209 @@
-import tensorflow as tf
-from common.utils import *
-from common.visualization import *
-from ctn_tranformer_model.ctnmt import CTNMTransformer
+from time import time
+from tqdm import tqdm
 from common.rate_scheduler import RateScheduledOptimizers
-import pandas as pd
+from common.utils import *
 import os
+import pandas as pd
+from common.visualization import visualize_transformer_training, visualize_learningrate
+from ctn_tranformer_model.ctnmt import CTNMTransformer
+from ctn_tranformer_model.custom_train_model import CustomTrainingModel
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
+class TrainCtnmtModel:
+    """
+        A class used to train a custom NMT model using knowledge distillation.
 
-# The class for training the transformer model.
-class TrainCntModel:
-    # Constructor to initialize the training model
-    def __init__(self, ctn_transformer, check_point_path, learning_rate, source_language,
-                 target_language, padding_value=0):
-        # Assigning the transformer model to be trained
-        self.ctn_transformer = ctn_transformer
-        # Path for checkpoint saving
-        self.check_point_path = check_point_path
-        # Learning rate for the training process
-        self.learning_rate = learning_rate
-        # Value for padding sequences
-        self.padding_value = padding_value
-        # Source language ID
+        Attributes:
+        ----------
+        transformer : Transformer model
+            The student model that we're trying to train.
+        teacher_model : Model
+            The teacher model from which knowledge is being transferred to the student model.
+        checkpoint_dir : str
+            Directory to save and load model checkpoints.
+        source_language : str
+            The language of the source data.
+        target_language : str
+            The language of the target data.
+        learning_rate : float
+            Learning rate for training the model.
+        accuracies : list or None
+            List to store accuracy values during training.
+        losses : list or None
+            List to store loss values during training.
+        learning_rates : list or None
+            List to store learning rate values during training.
+        steps : list or None
+            List to store the step numbers during training.
+        ctnmt : CTNMTransformer
+            CTNMT model instance.
+        optimizers : RateScheduledOptimizers
+            Optimizer used for training.
+        custom_model : CustomTrainingModel
+            Custom training model combining student and teacher models.
+    """
+    def __init__(self, transformer, teacher_model, checkpoint_dir, learning_rate, d_model, source_language,
+                 target_language):
+        """
+            Constructor to initialize the training model.
+
+            Parameters:
+            ----------
+            transformer : Transformer model
+                The student model that we're trying to train.
+            teacher_model : Model
+                The teacher model from which knowledge is being transferred.
+            checkpoint_dir : str
+                Directory to save and load checkpoints.
+            learning_rate : float
+                Learning rate for the model.
+            d_model : int
+                hidden connection network for the model.
+            source_language : str
+                Language of the source data.
+            target_language : str
+                Language of the target data.
+        """
+        self.transformer = transformer
+        self.teacher_model = teacher_model
+        self.checkpoint_dir = checkpoint_dir
         self.source_language = source_language
-        # Target language ID
         self.target_language = target_language
-        # Initializing checkpoint for saving the model and optimizer
-        # Define a loss object
-        self.loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
-        self.ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=RateScheduledOptimizers(
-            learning_rate_nmt=self.learning_rate), net=self.ctn_transformer.transformer)
-        # Checkpoint manager to handle checkpoint saving
-        self.manager = tf.train.CheckpointManager(self.ckpt, './' + check_point_path, max_to_keep=3)
+        self.learning_rate = learning_rate
+        self.accuracies = None
+        self.losses = None
+        self.learning_rates = None
+        self.steps = None
+        self.ctnmt = CTNMTransformer(d_model)
+        self.optimizers = RateScheduledOptimizers(learning_rate_nmt=self.learning_rate)
+        self.custom_model = CustomTrainingModel(self.transformer, self.teacher_model,
+                                                self.ctnmt)
+
+    def train(self, dataset, epochs):
+        """
+            Trains the CTNMT model using the given dataset and number of epochs.
+
+            This method:
+            - Initializes metrics for training (loss and accuracy).
+            - Sets up TensorFlow summary writers for logging.
+            - Loads checkpoints if available, or initializes training metrics if no checkpoints are found.
+            - Defines the inner training step function.
+            - Iterates through each epoch and batch, performing forward and backward passes.
+            - Optionally saves checkpoints and logs metrics.
+            - Visualizes training metrics after training completion.
+
+            Parameters:
+            ----------
+            dataset : tf.data.Dataset
+                The training dataset, expected to yield batches of source and target sequences.
+            epochs : int
+                The number of epochs to train the model.
+
+            Returns:
+            -------
+            None
+        """
+        train_loss = tf.keras.metrics.Mean(name='train_loss')
+        train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='train_accuracy')
+        summary_writer = tf.summary.create_file_writer('logs')
+
         # Path for saving visualization data as CSV
-        self.csv_path = 'outputs/visualization_data.csv'
+        csv_path = 'outputs/visualization_data.csv'
+        checkpoint, checkpoint_manager = get_checkpoints(self.transformer, self.optimizers.optimizer,
+                                                         self.checkpoint_dir)
         # If a checkpoint exists, restore from it and load metrics
-        if self.manager.latest_checkpoint:
-            self.ckpt.restore(self.manager.latest_checkpoint)
-            print("Restored from checkpoint:", self.manager.latest_checkpoint)
+        if checkpoint_manager.latest_checkpoint:
+            checkpoint.restore(checkpoint_manager.latest_checkpoint)
+            print("Restored from checkpoint:", checkpoint_manager.latest_checkpoint)
             # Load previous accuracy, loss, learning rates, and steps from CSV file
-            if os.path.exists(self.csv_path):
-                df = pd.read_csv(self.csv_path)
-                self.accuracies = df['accuracy'].tolist()
-                self.losses = df['loss'].tolist()
-                self.learning_rates = df['learning_rate'].tolist()
-                self.steps = df['step'].tolist()
+            if os.path.exists(csv_path):
+                df = pd.read_csv(csv_path)
+                accuracies = df['accuracy'].tolist()
+                losses = df['loss'].tolist()
+                learning_rates = df['learning_rate'].tolist()
+                steps = df['step'].tolist()
             else:
-                self.accuracies = []
-                self.losses = []
-                self.learning_rates = []
-                self.steps = []
+                accuracies = []
+                losses = []
+                learning_rates = []
+                steps = []
         else:
             # If no checkpoints found, initialize metrics as empty lists
             print("No checkpoint found. Starting a new training.")
-            self.accuracies = []
-            self.losses = []
-            self.learning_rates = []
-            self.steps = []
+            accuracies = []
+            losses = []
+            learning_rates = []
+            steps = []
 
-    # @tf.function
-    def train_step(self, src, tgt, optimizer, distillation_rate):
-        # Prepare target input and real target by shifting tokens
-        tgt_inp = tgt[:, :-1]
-        tgt_real = tgt[:, 1:]
-        # Create padding mask for encoder
-        enc_padding_mask = create_padding_mask(src)
-        # Determine target sequence length
-        tgt_shape = tf.shape(tgt_inp)
-        tgt_seq_len = tgt_shape[1]
-        # Create look-ahead mask for target sequence
-        look_ahead_mask = create_look_ahead_attention_mask(tgt_seq_len)
-        # Create padding mask for NMT
-        nmt_mask = create_padding_mask(src)
-        # Initialize variable to store teacher hidden encoder output
-        teacher_hidden_enc = None
-        # Record operations for backpropagation
-        with tf.GradientTape() as tape:
-            # Get teacher encoder output for source input
-            teacher_enc_output = self.ctn_transformer.teacher_model(src, training=False)
-            # Extract last hidden state from teacher encoder
-            if 'last_hidden_state' in teacher_enc_output:
-                teacher_hidden_enc = teacher_enc_output['last_hidden_state']
-            # Determine weight size from teacher hidden encoder shape
-            teacher_hidden_shape = tf.shape(teacher_hidden_enc)
-            weight_size = teacher_hidden_shape[2]
-            # Get student encoder output for source input
-            student_enc_output = self.ctn_transformer.get_student_encoder()([src, enc_padding_mask], training=True)
-            # Create a CTNMTransformer object with the weight size
-            ctnm_transformer = CTNMTransformer(weight_size)
-            # Combine teacher and student encoder outputs
-            combined_enc_output = ctnm_transformer.dynamic_switch(teacher_hidden_enc, student_enc_output)
-            # Get student decoder output and prediction
-            student_dec_output, student_prediction = self.ctn_transformer.get_student_decoder()(
-                [tgt_inp, look_ahead_mask, nmt_mask, combined_enc_output])
-            # Compute accuracy
-            accuracy = self.ctn_transformer.train_accuracy(tgt_real, student_prediction)
-            # Compute the loss between tgt_real and student_prediction
-            nmt_loss_value = self.loss_object(tgt_real, student_prediction)
-            # Compute NMT loss
-            nmt_loss = self.ctn_transformer.train_loss(nmt_loss_value)
-            # Compute distillation loss
-            distillation_loss = mse_loss(teacher_hidden_enc, student_enc_output)
-            # Compute total loss as a weighted sum of NMT and distillation loss
-            combined_loss = nmt_loss * distillation_rate + distillation_loss * (1 - distillation_rate)
+        @tf.function(
+            input_signature=[
+                tf.TensorSpec(shape=(None, None), dtype=tf.int32),
+                tf.TensorSpec(shape=(None, None), dtype=tf.int32),
+                tf.TensorSpec(shape=(), dtype=tf.float32)
+            ]
+        )
+        def train_step(src, tgt, distillation_rate):
+            target_input = tgt[:, :-1]
+            target_real = tgt[:, 1:]
+            encoder_padding_mask, combined_mask, decoder_padding_mask = get_masks(src, target_input)
+            with tf.GradientTape() as tape:
+                student_prediction, student_enc_output, teacher_hidden_enc = self.custom_model(src, target_input,
+                                                                                               encoder_padding_mask,
+                                                                                               combined_mask,
+                                                                                               decoder_padding_mask)
 
-        all_trainable_variables = (self.ctn_transformer.transformer.encoder.trainable_variables +
-                                   self.ctn_transformer.transformer.decoder.trainable_variables)
+                loss = loss_function(target_real, student_prediction)
+                nmt_accuracy = train_accuracy(target_real, student_prediction)
+                # Compute distillation loss
+                distillation_loss = self.ctnmt.asymptotic_distillation(teacher_hidden_enc, student_enc_output)
+                # Compute total loss as a weighted sum of NMT and distillation loss
+                combined_loss = loss * distillation_rate + distillation_loss * (1 - distillation_rate)
 
-        nmt_gradients = tape.gradient(combined_loss, all_trainable_variables)
+            nmt_gradients = tape.gradient(combined_loss, self.transformer.trainable_variables)
+            # Apply gradients to update the model parameters
+            self.optimizers.apply_gradients(nmt_gradients, self.transformer.trainable_variables)
+            lr = self.optimizers.optimizer.learning_rate
+            return train_loss(combined_loss), nmt_accuracy, lr
 
-        # Get trainable variables for NMT model
-        nmt_variables = self.ctn_transformer.transformer.encoder.trainable_variables + self.ctn_transformer.transformer.decoder.trainable_variables
-        # Apply gradients to update the model parameters
-        optimizer.apply_gradients(nmt_gradients, nmt_variables)
-        # Return loss and accuracy
-        return combined_loss, nmt_loss, distillation_loss, accuracy
-
-    def train(self, dataset, epochs):
-        # Initialize optimizer with learning rate
-        optimizers = RateScheduledOptimizers(learning_rate_nmt=self.learning_rate)
-        # Initialize step counter
         step_counter = 0
-        # Iterate through epochs
+        start_time = time()
         for epoch in range(epochs):
-            # Reset epoch loss and accuracy
-            self.ctn_transformer.train_loss.reset_states()
-            self.ctn_transformer.train_accuracy.reset_states()
-            # Iterate through dataset batches
-            for batch in dataset:
-                # Extract source and target language inputs
-                (source_language_input_ids, target_language_input_ids) = batch
+            train_loss.reset_states()
+            train_accuracy.reset_states()
+            distillation_rate = self.ctnmt.generate_distillation_rate(epoch, epochs)
+            with summary_writer.as_default():
+                for (batch, (source, target)) in tqdm(enumerate(dataset)):
+                    batch_loss, batch_accuracy, lr = train_step(source, target, distillation_rate)
+                    print(
+                        f'\nEpoch {epoch + 1} Loss {train_loss.result():.4f} Accuracy '
+                        f'{train_accuracy.result():.4f}')
+            # Increment step counter
+            step_counter += 1
+            # Record accuracies, losses, learning rates, and steps
+            accuracies.append(batch_accuracy.numpy())
+            losses.append(batch_loss.numpy())
+            learning_rates.append(lr.numpy())
+            steps.append(step_counter)
 
-                distillation_rate = self.ctn_transformer.generate_distillation_rate(epoch, epochs)
-                # Perform training step for the batch
-                combined_loss, nmt_loss, distillation_loss, accuracy = self.train_step(source_language_input_ids,
-                                                                                       target_language_input_ids,
-                                                                                       optimizers, distillation_rate)
-                # Print loss and accuracy for the epoch
-                print(
-                    f'Epoch {epoch + 1} Loss {self.ctn_transformer.train_loss.result():.4f} Accuracy '
-                    f'{self.ctn_transformer.train_accuracy.result():.4f}')
-                # Update learning rate
-                lr = optimizers.optimizer_nmt.learning_rate
-
-                # Increment step counter
-                step_counter += 1
-                # Record accuracies, losses, learning rates, and steps
-                self.accuracies.append(accuracy.numpy())
-                self.losses.append(nmt_loss.numpy())
-                self.learning_rates.append(lr.numpy())
-                self.steps.append(step_counter)
-
-                # Save a checkpoint every 10 steps
-                if step_counter % 5 == 0:
-                    save_path = self.manager.save()
-                    print(f"Saved checkpoint at step {step_counter}: {save_path}")
-
-                    output_dir = 'outputs'
-                    if not os.path.exists(output_dir):
-                        os.makedirs(output_dir)
-
-                    # Save accuracies, losses, learning rates, and steps to CSV file
-                    df = pd.DataFrame({
-                        'step': self.steps,
-                        'accuracy': self.accuracies,
-                        'loss': self.losses,
-                        'learning_rate': self.learning_rates
-                    })
-                    # Now you can save the CSV file to the 'outputs' directory
-                    df.to_csv(os.path.join(output_dir, 'visualization_data.csv'), index=False)
-
-            # Generate graphs
-            visualize_transformer_training(range(1, len(self.accuracies) + 1), self.accuracies, self.losses,
-                                           self.source_language, self.target_language, "CTNMT Model")
-
-            visualize_learningrate(range(1, len(self.accuracies) + 1), self.learning_rate,
-                                   self.source_language, self.target_language, 'CTNMT Model')
+            # Save a checkpoint every 10 steps
+            if step_counter % 5 == 0:
+                save_path = checkpoint_manager.save()
+                print(f"Saved checkpoint at step {step_counter}: {save_path}")
+                output_dir = 'outputs'
+                if not os.path.exists(output_dir):
+                    os.makedirs(output_dir)
+                # Save accuracies, losses, learning rates, and steps to CSV file
+                df = pd.DataFrame({
+                    'step': self.steps,
+                    'accuracy': self.accuracies,
+                    'loss': self.losses,
+                    'learning_rate': self.learning_rates
+                })
+                # Now you can save the CSV file to the 'outputs' directory
+                df.to_csv(os.path.join(output_dir, 'visualization_data.csv'), index=False)
+        print('Done. Time taken: {} seconds'.format(time() - start_time))
+        # Generate graphs
+        visualize_transformer_training(range(1, len(self.accuracies) + 1), self.accuracies, self.losses,
+                                       self.source_language, self.target_language, "CTNMT Model")
+        visualize_learningrate(range(1, len(self.accuracies) + 1), self.learning_rates,
+                               self.source_language, self.target_language, 'CTNMT Model')

@@ -3,6 +3,7 @@ import pickle
 from transformers import BertTokenizer
 import sentencepiece as spm
 # from tensorflow.keras.preprocessing.sequence import pad_sequences
+from keras.preprocessing.sequence import pad_sequences
 import tensorflow as tf
 
 
@@ -12,21 +13,21 @@ class LanguageProcessor:
     saving and loading tokenized data, and batching data with bucketing.
     """
 
-    def __init__(self, eng_lang_file_path, amh_lang_file_path, eng_vocab_file_path,
-                 amh_vocab_file_path, batch_size):
+    def __init__(self, src_lang_file_path, tgt_lang_file_path, src_vocab_file_path,
+                 tgt_vocab_file_path, batch_size):
         """
         Initializes the LanguageProcessor.
 
-        :param eng_lang_file_path: Path to the English language file.
-        :param amh_lang_file_path: Path to the Amharic language file.
-        :param eng_vocab_file_path: Path to the English vocabulary file.
-        :param amh_vocab_file_path: Path to the Amharic vocabulary file.
+        :param src_lang_file_path: Path to the Source language file.
+        :param tgt_lang_file_path: Path to the Target language file.
+        :param src_vocab_file_path: Path to the Source vocabulary file.
+        :param tgt_vocab_file_path: Path to the Target vocabulary file.
         :param batch_size: Size of the batches for training.
         """
-        self.eng_file = eng_lang_file_path
-        self.amh_file = amh_lang_file_path
-        self.eng_vocab_file = eng_vocab_file_path
-        self.amh_vocab_file = amh_vocab_file_path
+        self.src_file = src_lang_file_path
+        self.tgt_file = tgt_lang_file_path
+        self.src_vocab_file = src_vocab_file_path
+        self.tgt_vocab_file = tgt_vocab_file_path
         self.batch_size = batch_size
         self.tokenizer_src = BertTokenizer.from_pretrained('bert-base-uncased')
         self.tokenizer_tgt = None
@@ -37,22 +38,22 @@ class LanguageProcessor:
 
         :return: Tokenized source and target sentences.
         """
-        with open(self.eng_file, 'r', encoding='utf-8') as file:
+        with open(self.src_file, 'r', encoding='utf-8') as file:
             src_sentences = file.read().split('\n')
         src_tokens = [self.tokenizer_src.encode(sentence, truncation=True, padding='max_length', max_length=128) for
                       sentence in src_sentences]
 
-        with open(self.amh_file, 'r', encoding='utf-8') as file:
+        with open(self.tgt_file, 'r', encoding='utf-8') as file:
             tgt_sentences = file.read().split('\n')
 
-        if not os.path.exists(self.eng_vocab_file + ".model"):
-            spm.SentencePieceTrainer.train(input=self.eng_file, model_prefix=self.eng_vocab_file, vocab_size=2 ** 13)
-        self.tokenizer_src = spm.SentencePieceProcessor(model_file=self.eng_vocab_file + ".model")
+        if not os.path.exists(self.src_vocab_file + ".model"):
+            spm.SentencePieceTrainer.train(input=self.src_file, model_prefix=self.src_vocab_file, vocab_size=2 ** 13)
+        self.tokenizer_src = spm.SentencePieceProcessor(model_file=self.src_vocab_file + ".model")
         src_tokens = [self.tokenizer_src.encode_as_ids(sentence) for sentence in src_sentences]
 
-        if not os.path.exists(self.amh_vocab_file + ".model"):
-            spm.SentencePieceTrainer.train(input=self.amh_file, model_prefix=self.amh_vocab_file, vocab_size=2 ** 13)
-        self.tokenizer_tgt = spm.SentencePieceProcessor(model_file=self.amh_vocab_file + ".model")
+        if not os.path.exists(self.tgt_vocab_file + ".model"):
+            spm.SentencePieceTrainer.train(input=self.tgt_file, model_prefix=self.tgt_vocab_file, vocab_size=2 ** 13)
+        self.tokenizer_tgt = spm.SentencePieceProcessor(model_file=self.tgt_vocab_file + ".model")
         tgt_tokens = [self.tokenizer_tgt.encode_as_ids(sentence) for sentence in tgt_sentences]
 
         return src_tokens, tgt_tokens
@@ -91,13 +92,13 @@ class LanguageProcessor:
 
         :return: Sizes of the English and Amharic vocabularies.
         """
-        if not os.path.exists(self.eng_vocab_file) or not os.path.exists(self.amh_vocab_file + ".model"):
+        if not os.path.exists(self.src_vocab_file) or not os.path.exists(self.tgt_vocab_file + ".model"):
             _, _ = self.tokenize()
 
-        self.tokenizer_src = BertTokenizer(self.eng_vocab_file)
+        self.tokenizer_src = BertTokenizer(self.src_vocab_file)
         eng_vocab_size = self.tokenizer_src.vocab_size
 
-        self.tokenizer_tgt = spm.SentencePieceProcessor(model_file=self.amh_vocab_file + ".model")
+        self.tokenizer_tgt = spm.SentencePieceProcessor(model_file=self.tgt_vocab_file + ".model")
         amh_vocab_size = self.tokenizer_tgt.get_piece_size()
 
         return eng_vocab_size, amh_vocab_size
