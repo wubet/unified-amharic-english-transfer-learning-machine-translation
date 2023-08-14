@@ -69,7 +69,7 @@ def main(argv):
                                   tgt_vocab_file_path, batch_size)
 
     # Tokenize and get batches of data
-    dataset = processor.get_bucketed_batches()
+    train_dataset = processor.get_bucketed_batches()
 
     # Load vocab
     src_vocab_size, tgt_vocab_size = processor.load_vocab()
@@ -93,7 +93,7 @@ def main(argv):
     train_ctnmt_model = TrainCtnmtModel(transformer, teacher_model, check_point_path,
                                         learning_rate, d_model, source_language, target_language)
 
-    train_ctnmt_model.train(dataset, epochs)
+    train_ctnmt_model.train(train_dataset, epochs)
 
 
 if __name__ == '__main__':

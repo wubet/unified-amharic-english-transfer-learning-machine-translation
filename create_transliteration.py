@@ -6,7 +6,7 @@ import os
 
 from absl import flags
 from os import path
-from transliteration import ethiopic2latin
+from translitration.transliteration import ethiopic2latin
 from absl import app
 
 # coding:gbk
