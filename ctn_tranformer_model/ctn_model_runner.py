@@ -118,22 +118,22 @@ class TrainCtnmtModel:
             # Load previous accuracy, loss, learning rates, and steps from CSV file
             if os.path.exists(csv_path):
                 df = pd.read_csv(csv_path)
-                accuracies = df['accuracy'].tolist()
-                losses = df['loss'].tolist()
-                learning_rates = df['learning_rate'].tolist()
-                steps = df['step'].tolist()
+                self.accuracies = df['accuracy'].tolist()
+                self.losses = df['loss'].tolist()
+                self.learning_rates = df['learning_rate'].tolist()
+                self.steps = df['step'].tolist()
             else:
-                accuracies = []
-                losses = []
-                learning_rates = []
-                steps = []
+                self.accuracies = []
+                self.losses = []
+                self.learning_rates = []
+                self.steps = []
         else:
             # If no checkpoints found, initialize metrics as empty lists
             print("No checkpoint found. Starting a new training.")
-            accuracies = []
-            losses = []
-            learning_rates = []
-            steps = []
+            self.accuracies = []
+            self.losses = []
+            self.learning_rates = []
+            self.steps = []
 
         @tf.function(
             input_signature=[
@@ -174,19 +174,22 @@ class TrainCtnmtModel:
             with summary_writer.as_default():
                 for (batch, (source, target)) in tqdm(enumerate(dataset)):
                     batch_loss, batch_accuracy, lr = train_step(source, target, distillation_rate)
+                    # with summary_writer.as_default():
+                    #     tf.summary.scalar('train_loss', loss, step=step)
+                    #     tf.summary.scalar('learning_rate', lr, step=step)
                     print(
                         f'\nEpoch {epoch + 1} Loss {train_loss.result():.4f} Accuracy '
                         f'{train_accuracy.result():.4f}')
             # Increment step counter
             step_counter += 1
             # Record accuracies, losses, learning rates, and steps
-            accuracies.append(batch_accuracy.numpy())
-            losses.append(batch_loss.numpy())
-            learning_rates.append(lr.numpy())
-            steps.append(step_counter)
+            self.accuracies.append(batch_accuracy.numpy())
+            self.losses.append(batch_loss.numpy())
+            self.learning_rates.append(float(lr.numpy()))
+            self.steps.append(step_counter)
 
             # Save a checkpoint every 10 steps
-            if step_counter % 5 == 0:
+            if step_counter % 2 == 0:
                 save_path = checkpoint_manager.save()
                 print(f"Saved checkpoint at step {step_counter}: {save_path}")
                 output_dir = 'outputs'
@@ -201,6 +204,7 @@ class TrainCtnmtModel:
                 })
                 # Now you can save the CSV file to the 'outputs' directory
                 df.to_csv(os.path.join(output_dir, 'visualization_data.csv'), index=False)
+                print(f"Saved training data at step {step_counter}: {os.path.join(output_dir, 'visualization_data.csv')}")
         print('Done. Time taken: {} seconds'.format(time() - start_time))
         # Generate graphs
         visualize_transformer_training(range(1, len(self.accuracies) + 1), self.accuracies, self.losses,

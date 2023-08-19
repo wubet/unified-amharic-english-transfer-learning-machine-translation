@@ -5,6 +5,7 @@ import sentencepiece as spm
 # from tensorflow.keras.preprocessing.sequence import pad_sequences
 from keras.preprocessing.sequence import pad_sequences
 import tensorflow as tf
+import collections
 
 
 class LanguageProcessor:
@@ -29,7 +30,9 @@ class LanguageProcessor:
         self.src_vocab_file = src_vocab_file_path
         self.tgt_vocab_file = tgt_vocab_file_path
         self.batch_size = batch_size
-        self.tokenizer_src = BertTokenizer.from_pretrained('bert-base-uncased')
+        # self.tokenizer_src = BertTokenizer.from_pretrained('bert-base-uncased')
+        # self.tokenizer_tgt = None
+        self.tokenizer_src = None
         self.tokenizer_tgt = None
 
     def tokenize(self):
@@ -40,25 +43,46 @@ class LanguageProcessor:
         """
         with open(self.src_file, 'r', encoding='utf-8') as file:
             src_sentences = file.read().split('\n')
-        src_tokens = [self.tokenizer_src.encode(sentence, truncation=True, padding='max_length', max_length=128) for
-                      sentence in src_sentences]
 
         with open(self.tgt_file, 'r', encoding='utf-8') as file:
             tgt_sentences = file.read().split('\n')
 
-        if not os.path.exists(self.src_vocab_file + ".model"):
-            spm.SentencePieceTrainer.train(input=self.src_file, model_prefix=self.src_vocab_file, vocab_size=2 ** 13)
-        self.tokenizer_src = spm.SentencePieceProcessor(model_file=self.src_vocab_file + ".model")
-        src_tokens = [self.tokenizer_src.encode_as_ids(sentence) for sentence in src_sentences]
+        # Check if directory exists and create if not
+        directory_path = "tf-record"
+        if not os.path.exists(directory_path):
+            os.makedirs(directory_path)
 
-        if not os.path.exists(self.tgt_vocab_file + ".model"):
-            spm.SentencePieceTrainer.train(input=self.tgt_file, model_prefix=self.tgt_vocab_file, vocab_size=2 ** 13)
-        self.tokenizer_tgt = spm.SentencePieceProcessor(model_file=self.tgt_vocab_file + ".model")
-        tgt_tokens = [self.tokenizer_tgt.encode_as_ids(sentence) for sentence in tgt_sentences]
+        # Tokenize source sentences
+        if self.src_vocab_file.endswith('.en'):
+            self.tokenizer_src = BertTokenizer.from_pretrained('bert-base-uncased')
+            src_tokens = [self.tokenizer_src.encode(sentence, truncation=True, padding='max_length', max_length=128)
+                          for sentence in src_sentences]
+        elif self.src_vocab_file.endswith('.am'):
+            word_counts_src = collections.Counter(word for sentence in src_sentences for word in sentence.split())
+            vocab_size_src = min(len(word_counts_src), 5278)
+            if not os.path.exists(self.src_vocab_file + ".model"):
+                spm.SentencePieceTrainer.train(input=self.src_file, model_prefix=self.src_vocab_file,
+                                               vocab_size=vocab_size_src)
+            self.tokenizer_src = spm.SentencePieceProcessor(model_file=self.src_vocab_file + ".model")
+            src_tokens = [self.tokenizer_src.encode_as_ids(sentence) for sentence in src_sentences]
+
+        # Tokenize target sentences
+        if self.tgt_vocab_file.endswith('.en'):
+            self.tokenizer_tgt = BertTokenizer.from_pretrained('bert-base-uncased')
+            tgt_tokens = [self.tokenizer_tgt.encode(sentence, truncation=True, padding='max_length', max_length=128)
+                          for sentence in tgt_sentences]
+        elif self.tgt_vocab_file.endswith('.am'):
+            word_counts_tgt = collections.Counter(word for sentence in tgt_sentences for word in sentence.split())
+            vocab_size_tgt = min(len(word_counts_tgt), 5278)
+            if not os.path.exists(self.tgt_vocab_file + ".model"):
+                spm.SentencePieceTrainer.train(input=self.tgt_file, model_prefix=self.tgt_vocab_file,
+                                               vocab_size=vocab_size_tgt)
+            self.tokenizer_tgt = spm.SentencePieceProcessor(model_file=self.tgt_vocab_file + ".model")
+            tgt_tokens = [self.tokenizer_tgt.encode_as_ids(sentence) for sentence in tgt_sentences]
 
         return src_tokens, tgt_tokens
 
-    def save_tokenized_data(self, src_tokens, tgt_tokens, src_file='eng_tokens.pkl', tgt_file='amh_tokens.pkl'):
+    def save_tokenized_data(self, src_tokens, tgt_tokens, src_file='src_tokens.pkl', tgt_file='tgt_tokens.pkl'):
         """
         Saves the tokenized data.
 
@@ -72,7 +96,7 @@ class LanguageProcessor:
         with open(tgt_file, 'wb') as f:
             pickle.dump(tgt_tokens, f)
 
-    def load_tokenized_data(self, src_file='eng_tokens.pkl', tgt_file='amh_tokens.pkl'):
+    def load_tokenized_data(self, src_file='src_tokens.pkl', tgt_file='tgt_tokens.pkl'):
         """
         Loads the tokenized data.
 
@@ -92,24 +116,31 @@ class LanguageProcessor:
 
         :return: Sizes of the English and Amharic vocabularies.
         """
-        if not os.path.exists(self.src_vocab_file) or not os.path.exists(self.tgt_vocab_file + ".model"):
+        if not os.path.exists(self.src_vocab_file + ".model") or not os.path.exists(self.tgt_vocab_file + ".model"):
             _, _ = self.tokenize()
 
-        self.tokenizer_src = BertTokenizer(self.src_vocab_file)
-        eng_vocab_size = self.tokenizer_src.vocab_size
+        if self.src_vocab_file.endswith('.en'):
+            self.tokenizer_src = BertTokenizer.from_pretrained('bert-base-uncased')
+            src_vocab_size = len(self.tokenizer_src.get_vocab())
+        elif self.src_vocab_file.endswith('.am'):
+            self.tokenizer_src = spm.SentencePieceProcessor(model_file=self.src_vocab_file + ".model")
+            src_vocab_size = self.tokenizer_src.get_piece_size()
 
-        self.tokenizer_tgt = spm.SentencePieceProcessor(model_file=self.tgt_vocab_file + ".model")
-        amh_vocab_size = self.tokenizer_tgt.get_piece_size()
+        if self.tgt_vocab_file.endswith('.en'):
+            self.tokenizer_tgt = BertTokenizer.from_pretrained('bert-base-uncased')
+            tgt_vocab_size = len(self.tokenizer_tgt.get_vocab())
+        elif self.tgt_vocab_file.endswith('.am'):
+            self.tokenizer_tgt = spm.SentencePieceProcessor(model_file=self.tgt_vocab_file + ".model")
+            tgt_vocab_size = self.tokenizer_tgt.get_piece_size()
 
-        return eng_vocab_size, amh_vocab_size
-
+        return src_vocab_size, tgt_vocab_size
     def get_bucketed_batches(self):
         """
        Gets batches of data with bucketing.
 
        :return: A dataset of bucketed batches.
        """
-        if os.path.exists('eng_tokens.pkl') and os.path.exists('amh_tokens.pkl'):
+        if os.path.exists('src_tokens.pkl') and os.path.exists('tgt_tokens.pkl'):
             src_tokens, tgt_tokens = self.load_tokenized_data()
         else:
             src_tokens, tgt_tokens = self.tokenize()

@@ -15,7 +15,7 @@ def visualize_learningrate(steps, learning_rate, source_language, target_languag
     :param model_name:
     :return:
     """
-    learning_rate_path = 'tf-transformer/output/temp_learning_rate'
+    learning_rate_path = 'output/temp_learning_rate'
 
     plt.plot(steps, learning_rate)
     plt.title(source_language + " to " + target_language + " " + model_name + " Learning Rate")
@@ -32,8 +32,8 @@ def visualize_transformer_training(epoch, accuracies, losses, source_language, t
     :param model_name: name of the deep learning model
     :return: none
     """
-    accuracy_path = 'tf-transformer/output/' + model_name + '_accuracy_hist.png'
-    loss_path = 'tf-transformer/output/' + model_name + '_loss_hist.png'
+    accuracy_path = 'output/' + model_name + '_accuracy_hist.png'
+    loss_path = 'output/' + model_name + '_loss_hist.png'
 
     plt.figure()
     # visualize the training history

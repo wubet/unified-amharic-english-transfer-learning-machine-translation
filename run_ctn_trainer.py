@@ -25,6 +25,14 @@ flags.DEFINE_string(
     'source_language', None, 'source language.')
 flags.DEFINE_string(
     'target_language', None, 'target language.')
+flags.DEFINE_integer(
+    'batch_size', 10, 'batch size')
+flags.DEFINE_integer(
+    'num_steps', 100000, 'Num of training iterations (minibatches).')
+flags.DEFINE_integer(
+    'save_ckpt_per_steps', 5000, 'Every this num of steps to save checkpoint.')
+flags.DEFINE_integer(
+    'log_per_iterations', 100, 'Every this num of steps to save checkpoint.')
 
 
 def main(argv):
@@ -35,8 +43,8 @@ def main(argv):
     num_heads = 8
     dff = 2048
     dropout_rate = 0.1
-    learning_rate = 0.1
-    epochs = 2  # Set your desired number of epochs
+    learning_rate = 0.0001
+    epochs = 4  # Set your desired number of epochs
     batch_size = 10
 
     if not FLAGS.src_lang_file_path:
