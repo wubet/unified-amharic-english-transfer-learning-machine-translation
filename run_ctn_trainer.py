@@ -26,6 +26,29 @@ flags.DEFINE_string(
 flags.DEFINE_string(
     'target_language', None, 'target language.')
 flags.DEFINE_integer(
+    'num_layers', 6, 'Num of layers in encoder stack.')
+flags.DEFINE_integer(
+    'd_model', 768, 'The dimensionality of the embedding vector.')
+flags.DEFINE_integer(
+    'num_heads', 8, 'Num of attention heads.')
+flags.DEFINE_integer(
+    'dff', 2048, 'The depth of the intermediate dense layer of the'
+                 'feed-forward sublayer.')
+flags.DEFINE_float(
+    'learning_rate', 0.001, 'Base learning rate.')
+
+flags.DEFINE_float(
+    'dropout_rate', 0.1, 'Dropout rate for the Dropout layers.')
+
+flags.DEFINE_integer(
+    'max_num_tokens', 4096, 'The maximum num of tokens in each batch.')
+flags.DEFINE_integer(
+    'max_length', 64, 'Source or target seqs longer than this will be filtered'
+                      ' out.')
+flags.DEFINE_integer(
+    'num_parallel_calls', 8, 'Num of TFRecord files to be processed '
+                             'concurrently.')
+flags.DEFINE_integer(
     'batch_size', 10, 'batch size')
 flags.DEFINE_integer(
     'num_steps', 100000, 'Num of training iterations (minibatches).')
@@ -36,16 +59,6 @@ flags.DEFINE_integer(
 
 
 def main(argv):
-    del argv  # Unused.
-    # Define the hypermarkets
-    d_model = 768
-    num_layers = 6
-    num_heads = 8
-    dff = 2048
-    dropout_rate = 0.1
-    learning_rate = 0.0001
-    epochs = 4  # Set your desired number of epochs
-    batch_size = 10
 
     if not FLAGS.src_lang_file_path:
         raise ValueError('You must specify "Source language directory"!')
@@ -72,6 +85,17 @@ def main(argv):
     check_point_path = FLAGS.check_point_path
     source_language = FLAGS.source_language
     target_language = FLAGS.target_language
+    d_model = FLAGS.d_model
+    num_layers = FLAGS.num_layers
+    num_heads = FLAGS.num_heads
+    dff = FLAGS.dff
+    dropout_rate = FLAGS.dropout_rate
+    learning_rate = FLAGS.learning_rate
+    # epochs = FLAGS.epochs # Set your desired number of epochs
+    batch_size = FLAGS.batch_size
+    num_steps = FLAGS.num_steps
+    save_ckpt_per_steps = FLAGS.save_ckpt_per_steps
+    log_per_iterations = FLAGS.log_per_iterations
 
     processor = LanguageProcessor(src_lang_file_path, tgt_lang_file_path, src_vocab_file_path,
                                   tgt_vocab_file_path, batch_size)
@@ -98,10 +122,18 @@ def main(argv):
         config.output_hidden_states = True
         teacher_model = TFBertModel.from_pretrained(teacher_model_path, config=config)
 
-    train_ctnmt_model = TrainCtnmtModel(transformer, teacher_model, check_point_path,
-                                        learning_rate, d_model, source_language, target_language)
+    train_ctnmt_model = TrainCtnmtModel(transformer,
+                                        teacher_model,
+                                        check_point_path,
+                                        learning_rate,
+                                        d_model,
+                                        num_steps,
+                                        save_ckpt_per_steps,
+                                        log_per_iterations,
+                                        source_language,
+                                        target_language)
 
-    train_ctnmt_model.train(train_dataset, epochs)
+    train_ctnmt_model.train(train_dataset)
 
 
 if __name__ == '__main__':

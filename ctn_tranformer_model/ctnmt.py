@@ -18,6 +18,7 @@ class CTNMTransformer(tf.keras.Model):
         mse_loss : tf.keras.losses.MeanSquaredError
             Mean squared error loss instance for computing distillation loss.
     """
+
     def __init__(self, gate_size):
         """
             Initializes the CTNMTransformer with given gate size.
@@ -80,33 +81,29 @@ class CTNMTransformer(tf.keras.Model):
         distillation_loss = self.mse_loss(teacher_hidden_state, student_hidden_state)
         return distillation_loss
 
-    # def generate_distillation_rate(self, current_epoch, total_epochs, start_rate=1.0, end_rate=0.0):
-    #     """
-    #         Linearly decrease the distillation_rate from start_rate to end_rate over the total_epochs.
-    #
-    #         Parameters:
-    #         ----------
-    #         current_epoch : int
-    #             The current epoch number (starting from 0).
-    #         total_epochs : int
-    #             The total number of epochs during training.
-    #         start_rate : float, optional
-    #             The starting value for distillation_rate at the beginning (epoch 0). Defaults to 1.0.
-    #         end_rate : float, optional
-    #             The ending value for distillation_rate at the end of training. Defaults to 0.0.
-    #
-    #         Returns:
-    #         ----------
-    #         float:
-    #             The calculated distillation_rate for the current epoch.
-    #     """
-    #     return start_rate - (current_epoch / (total_epochs - 1)) * (start_rate - end_rate)
-
     def generate_distillation_rate(self, current_epoch, total_epochs, start_rate=1.0, end_rate=0.0, constant_epochs=5):
+        """
+            Linearly decrease the distillation_rate from start_rate to end_rate over the total_epochs.
+
+            Parameters:
+            ----------
+            current_epoch : int
+                The current epoch number (starting from 0).
+            total_epochs : int
+                The total number of epochs during training.
+            start_rate : float, optional
+                The starting value for distillation_rate at the beginning (epoch 0). Defaults to 1.0.
+            end_rate : float, optional
+                The ending value for distillation_rate at the end of training. Defaults to 0.0.
+
+            Returns:
+            ----------
+            float:
+                The calculated distillation_rate for the current epoch.
+        """
         if current_epoch < constant_epochs:
-            return start_rate
+            return tf.constant(start_rate, dtype=tf.float32)
         adjusted_epochs = total_epochs - constant_epochs
         adjusted_epoch = current_epoch - constant_epochs
-        return start_rate - (adjusted_epoch / (adjusted_epochs - 1)) * (start_rate - end_rate)
-
-
+        distillation_rate = start_rate - (adjusted_epoch / (adjusted_epochs - 1)) * (start_rate - end_rate)
+        return tf.cast(distillation_rate, tf.float32)
