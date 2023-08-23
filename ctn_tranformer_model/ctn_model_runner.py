@@ -1,4 +1,6 @@
 from time import time
+
+from common.noam_learning_rate_scheduler import NoamLearningRateSchedule
 from common.rate_scheduler import RateScheduledOptimizers
 from common.utils import *
 import os
@@ -98,7 +100,7 @@ class TrainCtnmtModel:
         self.learning_rates = None
         self.steps = None
         self.ctnmt = CTNMTransformer(d_model)
-        self.optimizers = RateScheduledOptimizers(learning_rate_nmt=self.learning_rate)
+        # self.optimizers = RateScheduledOptimizers(learning_rate_nmt=self.learning_rate)
         self.custom_model = CustomTrainingModel(self.transformer, self.teacher_model,
                                                 self.ctnmt)
         self.train_loss = tf.keras.metrics.Mean(name='train_loss')
@@ -130,8 +132,12 @@ class TrainCtnmtModel:
 
         # Path for saving visualization data as CSV
         csv_path = 'outputs/visualization_data.csv'
-        checkpoint, checkpoint_manager = get_checkpoints(self.transformer, self.optimizers.optimizer,
-                                                         self.checkpoint_dir)
+        # checkpoint, checkpoint_manager = get_checkpoints(self.transformer, self.optimizers.optimizer,
+        #                                                  self.checkpoint_dir)
+        learning_rate = NoamLearningRateSchedule(initial_factor=1.0, dmodel=768, warmup_steps=2000)
+        optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
+        checkpoint, checkpoint_manager = get_checkpoints(self.transformer, optimizer, self.checkpoint_dir)
+
         output_dir = 'outputs'
 
         # If a checkpoint exists, restore from it and load metrics
@@ -184,9 +190,12 @@ class TrainCtnmtModel:
 
             nmt_gradients = tape.gradient(combined_loss, self.transformer.trainable_variables)
             # Apply gradients to update the model parameters
-            self.optimizers.apply_gradients(nmt_gradients, self.transformer.trainable_variables)
-            lr = self.optimizers.optimizer.learning_rate
-            step = self.optimizers.optimizer.iterations
+            # self.optimizers.apply_gradients(nmt_gradients, self.transformer.trainable_variables)
+            # lr = self.optimizers.optimizer.learning_rate
+            # step = self.optimizers.optimizer.iterations
+            optimizer.apply_gradients(zip(nmt_gradients, self.transformer.trainable_variables))
+            lr = optimizer.learning_rate
+            step = optimizer.iterations
             return self.train_loss(combined_loss), nmt_accuracy, lr, step
 
         step = 0
