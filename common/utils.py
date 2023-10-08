@@ -27,17 +27,21 @@ def get_masks(x, y):
     return encoder_padding_mask, combined_mask, decoder_padding_mask
 
 
-def get_checkpoints(transformer, optimizer, checkpoint_dir):
-    checkpoint = tf.train.Checkpoint(
-        transformer=transformer,
-        optimizer=optimizer
-    )
-    checkpoint_manager = tf.train.CheckpointManager(
-        checkpoint, checkpoint_dir, max_to_keep=5
-    )
-    if checkpoint_manager.latest_checkpoint:
-        checkpoint.restore(checkpoint_manager.latest_checkpoint)
-    return checkpoint, checkpoint_manager
+def get_checkpoints(model, optimizer, checkpoint_dir, mode="train"):
+    checkpoint = tf.train.Checkpoint(optimizer=optimizer, model=model)
+    manager = tf.train.CheckpointManager(checkpoint, checkpoint_dir, max_to_keep=3)
+
+    if mode == "evaluate":
+        if not manager.latest_checkpoint:
+            raise ValueError("No checkpoint found. Cannot evaluate without a trained model.")
+    elif mode == "train":
+        if manager.latest_checkpoint:
+            print("Restoring from", manager.latest_checkpoint)
+            checkpoint.restore(manager.latest_checkpoint)
+        else:
+            print("No checkpoint found. Starting training from scratch.")
+
+    return checkpoint, manager
 
 
 def create_padding_mask(seq):

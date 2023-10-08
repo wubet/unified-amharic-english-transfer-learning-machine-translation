@@ -134,16 +134,14 @@ class TrainCtnmtModel:
         csv_path = 'outputs/visualization_data.csv'
         # checkpoint, checkpoint_manager = get_checkpoints(self.transformer, self.optimizers.optimizer,
         #                                                  self.checkpoint_dir)
-        learning_rate = NoamLearningRateSchedule(initial_factor=1.0, dmodel=768, warmup_steps=2000)
+        learning_rate = NoamLearningRateSchedule(initial_factor=1.0, dmodel=768, warmup_steps=1000)
         optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
-        checkpoint, checkpoint_manager = get_checkpoints(self.transformer, optimizer, self.checkpoint_dir)
+        checkpoint, checkpoint_manager = get_checkpoints(self.transformer, optimizer, self.checkpoint_dir, "train")
 
         output_dir = 'outputs'
 
         # If a checkpoint exists, restore from it and load metrics
         if checkpoint_manager.latest_checkpoint:
-            checkpoint.restore(checkpoint_manager.latest_checkpoint)
-            print("Restored from checkpoint:", checkpoint_manager.latest_checkpoint)
             # Load previous accuracy, loss, learning rates, and steps from CSV file
             if os.path.exists(csv_path):
                 df = pd.read_csv(csv_path)
@@ -158,7 +156,6 @@ class TrainCtnmtModel:
                 self.steps = []
         else:
             # If no checkpoints found, initialize metrics as empty lists
-            print("No checkpoint found. Starting a new training.")
             self.accuracies = []
             self.losses = []
             self.learning_rates = []
@@ -180,7 +177,8 @@ class TrainCtnmtModel:
                                                                                                encoder_padding_mask,
                                                                                                combined_mask,
                                                                                                decoder_padding_mask)
-
+                print("student_prediction shape", student_prediction.shape)
+                print("target_real shape", student_prediction.shape)
                 loss = loss_function(target_real, student_prediction)
                 nmt_accuracy = self.train_accuracy(target_real, student_prediction)
                 # Compute distillation loss
@@ -196,7 +194,20 @@ class TrainCtnmtModel:
             optimizer.apply_gradients(zip(nmt_gradients, self.transformer.trainable_variables))
             lr = optimizer.learning_rate
             step = optimizer.iterations
-            return self.train_loss(combined_loss), nmt_accuracy, lr, step
+            current_lr = lr(step)
+            # print("Type of self.train_loss(combined_loss):", type(self.train_loss(combined_loss)))
+            # print("Shape of self.train_loss(combined_loss):", tf.shape(self.train_loss(combined_loss)))
+            #
+            # print("Type of nmt_accuracy:", type(nmt_accuracy))
+            # print("Shape of nmt_accuracy:", tf.shape(nmt_accuracy))
+            #
+            # print("Type of lr:", type(current_lr))
+            # print("Shape of lr:", tf.shape(current_lr))
+            #
+            # print("Type of step:", type(step))
+            # print("Shape of step:", tf.shape(step))
+
+            return self.train_loss(combined_loss), nmt_accuracy, current_lr, step
 
         step = 0
         start_time = time()

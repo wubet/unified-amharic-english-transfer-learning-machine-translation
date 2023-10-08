@@ -51,7 +51,7 @@ flags.DEFINE_integer(
 flags.DEFINE_integer(
     'batch_size', 10, 'batch size')
 flags.DEFINE_integer(
-    'num_steps', 100000, 'Num of training iterations (minibatches).')
+    'num_steps', 500000, 'Num of training iterations (minibatches).')
 flags.DEFINE_integer(
     'save_ckpt_per_steps', 5000, 'Every this num of steps to save checkpoint.')
 flags.DEFINE_integer(
@@ -59,7 +59,6 @@ flags.DEFINE_integer(
 
 
 def main(argv):
-
     if not FLAGS.src_lang_file_path:
         raise ValueError('You must specify "Source language directory"!')
     if not FLAGS.tgt_lang_file_path:
@@ -97,14 +96,16 @@ def main(argv):
     save_ckpt_per_steps = FLAGS.save_ckpt_per_steps
     log_per_iterations = FLAGS.log_per_iterations
 
-    processor = LanguageProcessor(src_lang_file_path, tgt_lang_file_path, src_vocab_file_path,
-                                  tgt_vocab_file_path, batch_size)
+    language_processor = LanguageProcessor(src_lang_file_path, tgt_lang_file_path, src_vocab_file_path,
+                                           tgt_vocab_file_path, batch_size)
 
-    # Tokenize and get batches of data
-    train_dataset = processor.get_bucketed_batches()
+    _, _ = language_processor.tokenize("training")
 
     # Load vocab
-    src_vocab_size, tgt_vocab_size = processor.load_vocab()
+    src_vocab_size, tgt_vocab_size = language_processor.get_vocab_size()
+
+    # Tokenize and get batches of data
+    train_dataset = language_processor.get_bucketed_batches("training")
 
     # # Load the teacher model
     teacher_model_path = pre_trained_model_path  # Path to the pretrained model

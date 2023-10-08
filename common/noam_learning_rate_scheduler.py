@@ -9,6 +9,7 @@ class NoamLearningRateSchedule(tf.keras.optimizers.schedules.LearningRateSchedul
         self.warmup_steps = warmup_steps
 
     def __call__(self, step):
-        arg1 = tf.math.rsqrt(step)
-        arg2 = step * (self.warmup_steps ** -1.5)
-        return self.initial_factor * tf.math.rsqrt(self.dmodel) * tf.math.minimum(arg1, arg2)
+        arg1 = tf.math.rsqrt(tf.cast(step, tf.float32))
+        arg2 = tf.cast(step, tf.float32) * (self.warmup_steps ** -1.5)
+        return self.initial_factor * tf.math.rsqrt(tf.cast(self.dmodel, tf.float32)) * tf.math.minimum(arg1, arg2)
+

@@ -43,8 +43,8 @@ class Transformer(tf.keras.Model, ABC):
         # into prediction scores for each possible output token.
         self.final_layer = layers.Dense(target_vocab_size)
 
-    def call(self, inputs, targets, training, enc_padding_mask, look_ahead_mask, dec_padding_mask,
-             external_enc_output=None):
+    def call(self, inputs, targets=None, training=False, enc_padding_mask=None, look_ahead_mask=None,
+             dec_padding_mask=None, external_enc_output=None):
         """
           Parameters:
           ----------
